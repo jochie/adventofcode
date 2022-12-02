@@ -10,7 +10,7 @@ while (<>) {
     if (/^$/) {
 	if ($sum > 0) {
 	    $elf++;
-	    print("Elf $elf: $sum\n");
+	    # print("Elf $elf: $sum\n");
 	    if ($sum > $max) {
 		$max = $sum;
 	    }
@@ -24,15 +24,15 @@ while (<>) {
 
 if ($sum > 0) {
     $elf++;
-    print("Elf $elf: $sum\n");
+    # print("Elf $elf: $sum\n");
     if ($sum > $max) {
 	$max = $sum;
     }
     push @list, $sum;
 }
-print("Max: $max\n");
+# print("Max: $max\n");
 
 @list = sort { $b <=> $a } @list;
-print(join(" ", @list).$/);
+# print(join(" ", @list).$/);
 my $top3 = $list[0] + $list[1] + $list[2];
-print("sum(Top 3) = $top3\n");
+print("$top3\n");
