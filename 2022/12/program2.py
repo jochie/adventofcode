@@ -29,7 +29,6 @@ print(f"Start from {start}, end at {end}")
 def pos_key(p):
     return f"{p[0]},{p[1]}"
 
-
 def possible_path(cur, pos):
     if pos_key(pos) in seen:
         # Somebody has already been there, so that shouldn't be a path
@@ -44,22 +43,18 @@ def find_paths(pos):
         # Check to the left
         if possible_path(pos, [ pos[0] - 1, pos[1] ]):
             paths.append([ pos[0] - 1, pos[1] ])
-        pass
     if pos[0] < height - 1:
         # Check to the right
         if possible_path(pos, [ pos[0] + 1, pos[1] ]):
             paths.append([ pos[0] + 1, pos[1] ])
-        pass
     if pos[1] > 0:
         # Check up:
         if possible_path(pos, [ pos[0], pos[1] - 1 ]):
             paths.append([ pos[0], pos[1] - 1 ])
-        pass
     if pos[1] < width - 1:
         # Check down:
         if possible_path(pos, [ pos[0], pos[1] + 1 ]):
             paths.append([ pos[0], pos[1] + 1 ])
-        pass
     return paths
 
 def shortest_path(start):

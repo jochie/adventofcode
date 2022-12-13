@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
-# Disclaimer: Definitely not optimal
+# Solution suggested by someone else, to search the shortest path to
+# from any 'a' level spot to 'E' by starting at 'E' and finding the
+# first 'a' level spot, instead, reversing the possible_path()
+# condition.
 
 import sys
 
-start = [ 0, 0 ]
 end = [ 0, 0 ]
 row = 0
 map = []
@@ -15,7 +17,6 @@ for line in sys.stdin:
     for i in range(width):
         if line[i] == "S":
             map_row.append(0)
-            start = [ row, i ]
         elif line[i] == "E":
             map_row.append(25)
             end = [ row, i ]
@@ -26,20 +27,17 @@ for line in sys.stdin:
 
 height = row
 print(f"Height = {height}; width = {width}")
-print(f"Start from {start}, end at {end}")
+print(f"End at {end}")
 
 def pos_key(p):
     return f"{p[0]},{p[1]}"
-
-seen = { pos_key(start): 1 }
-checking = [ start ]
 
 def possible_path(cur, pos):
     if pos_key(pos) in seen:
         # Somebody has already been there, so that shouldn't be a path
         return False
     # Check height difference
-    diff = map[pos[0]][pos[1]] - map[cur[0]][cur[1]]
+    diff = map[cur[0]][cur[1]] - map[pos[0]][pos[1]]
     return diff <= 1
 
 def find_paths(pos):
@@ -62,18 +60,26 @@ def find_paths(pos):
             paths.append([ pos[0], pos[1] + 1 ])
     return paths
 
-steps = 0
-while True:
-    steps += 1
-    # print(f"STEP {steps}")
-    next_paths = []
-    for cur in checking:
-        paths = find_paths(cur)
-        for pos in paths:
-            seen[pos_key(pos)] = 1
-            if pos[0] == end[0] and pos[1] == end[1]:
-                print(f"Found the route in {steps} steps!")
-                sys.exit(0)
-            next_paths.append(pos)
-    # print(f"Checking next at: {next_paths}")
-    checking = next_paths
+def shortest_path(start):
+    global seen
+    seen = { pos_key(start): 1 }
+    checking = [ start ]
+    steps = 0
+    while True:
+        steps += 1
+        # print(f"STEP {steps}")
+        next_paths = []
+        for cur in checking:
+            paths = find_paths(cur)
+            for pos in paths:
+                seen[pos_key(pos)] = 1
+                if map[pos[0]][pos[1]] == 0:
+                    return steps
+                next_paths.append(pos)
+        # print(f"Checking next at: {next_paths}")
+        checking = next_paths
+        if len(checking) == 0:
+            return -1
+
+shortest = shortest_path(end)
+print(f"Shortest possible path: {shortest} steps.")
