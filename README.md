@@ -1,0 +1,1 @@
+My solutions for Advent of Code, a.k.a https://adventofcode.com/
