@@ -5,7 +5,12 @@
 use strict;
 use warnings;
 
+use constant DEBUG => 0;
+
 $| = 1;
+my $clear = qx{tput clear};
+my $lines = qx{tput lines};
+chomp($lines);
 
 my $line = <STDIN>;
 chomp($line);
@@ -19,6 +24,8 @@ for (my $i = 0; $i < $chamber_height_init; $i++) {
 
 my $rock = -1;
 my $falling = 0;
+my $rocks = 0;
+my $i = 0;
 
 # Rock 0:
 #
@@ -77,7 +84,15 @@ sub chamber_space {
 }
 
 sub display_chamber {
+    my $prefix = '   ';
+    print($clear);
+    print("Rock $rocks; Jet $i\n");
     for (my $y = 0; $y < @chamber; $y++) {
+	if ($y >= $lines - 4) {
+	    # Truncate what's shown
+	    print("$prefix:       :\n");
+	    return;
+	}
 	my $line = $chamber[$y];
 	if (@mask > 0) {
 	    if ($y >= $rock_y && $y < $rock_y + $height) {
@@ -91,9 +106,9 @@ sub display_chamber {
 		}
 	    }
 	}
-	print("|$line|\n");
+	print("$prefix|$line|\n");
     }
-    print("`-------'\n");
+    print("$prefix`-------'\n");
 }
 
 # Return 0 if there is no overlap, I guess
@@ -126,8 +141,6 @@ sub solidify_rock {
     }
 }
 
-my $rocks = 0;
-my $i = 0;
 while (1) {
     if (!$falling) {
 	$rock = ($rock + 1) % 5;
@@ -138,71 +151,60 @@ while (1) {
 	@mask = @{ $masks{$rock} };
 	$height = scalar(@mask);
 	my $space = chamber_space();
-	print("rock $rock ($rocks); height $height; space $space\n");
+	print("rock $rock ($rocks); height $height; space $space\n") if DEBUG;
 	my $needed = $height + 3 - $space;
 	while ($needed > 0) {
 	    @chamber = ('.'x$chamber_width, @chamber);
 	    $needed--;
 	}
-	while ($needed < 0) {
-	    shift @chamber;
-	    $needed++;
-	}
 	$falling = 1;
-	$rock_y = 0;
+	$rock_y = -$needed;
 	$rock_x = 2;
 	$rock_width = length($mask[0]);
 	$rock_height = scalar(@mask);
     }
-    # display_chamber();
+    display_chamber();
     my $jet = substr($line, $i, 1);
-    print("\nJET: $jet ($i)\n");
+    print("\nJET: $jet ($i)\n") if DEBUG;
     if ($jet eq '>') {
 	# To the right, if possible
 	if ($rock_x + $rock_width < $chamber_width) {
 	    if (chamber_overlap($rock_x + 1, $rock_y) == 0) {
-		print("Moved to the right.\n");
+		print("Moved to the right.\n") if DEBUG;
 		$rock_x++;
 	    } else {
-		print("Blocked by rock from moving to the right.\n");
-		# solidify_rock();
-		# @mask = ();
-		# $falling = 0;
+		print("Blocked by rock from moving to the right.\n") if DEBUG;
 	    }
 	} else {
-	    print("Bump into chamber wall on the right.\n");
+	    print("Bump into chamber wall on the right.\n") if DEBUG;
 	}
     } elsif ($jet eq '<') {
 	# To the left, if possible
 	if ($rock_x > 0) {
 	    if (chamber_overlap($rock_x - 1, $rock_y) == 0) {
-		print("Moved to the left.\n");
+		print("Moved to the left.\n") if DEBUG;
 		$rock_x--;
 	    } else {
-		print("Blocked by rock from moving to the left.\n");
-		# print("Running into rock by going left?\n");
-		# solidify_rock();
-		# @mask = ();
-		# $falling = 0;
+		print("Blocked by rock from moving to the left.\n") if DEBUG;
 	    }
 	} else {
-	    print("Bump into chamber wall on the left.\n");
+	    print("Bump into chamber wall on the left.\n") if DEBUG;
 	}
     } else {
 	die "Unexpected jet direction: $jet\n";
     }
     if ($falling) {
 	if ($rock_y + $rock_height == scalar(@chamber)) {
-	    print("We hit the bottom\n");
+	    print("We hit the bottom\n") if DEBUG;
 	    solidify_rock();
 	    @mask = ();
 	    $falling = 0;
 	} else {
 	    if (chamber_overlap($rock_x, $rock_y + 1) == 0) {
-		print("Moved one row down.\n");
+		print("Moved one row down.\n") if DEBUG;
 		$rock_y++;
 	    } else {
-		print("Running into other rocks below..\n");
+		print("Running into other rocks below..\n") if DEBUG;
 		solidify_rock();
 		@mask = ();
 		$falling = 0;
@@ -211,6 +213,9 @@ while (1) {
     }
     # Repeat the jet pattern over and over
     $i = ($i + 1) % length($line);
+
+    # Quick partial-second sleep:
+    select(undef, undef, undef, 0.05) if !DEBUG;
 }
 printf("Chamber height: %d; Space: %d -- Height of structure: %d\n",
        scalar(@chamber), chamber_space(), scalar(@chamber) - chamber_space());
