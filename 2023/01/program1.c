@@ -11,6 +11,7 @@
 # include <stdlib.h>  /* exit()               */
 # include <string.h>  /* strlen()             */
 # include <unistd.h>  /* getopt()             */
+# include <ctype.h>   /* isdigit()            */
 
 # define MAX_LEN 1024
 
@@ -43,7 +44,7 @@ main(int argc, char *argv[], char *env[])
         int df = -1;
         int dl = -1;
         for (int i = 0; i < strlen(buf); i++) {
-            if (buf[i] >= '0' && buf[i] <= '9') {
+            if (isdigit(buf[i])) {
                 int val = buf[i] - '0';
                 if (opts.debug) {
                     printf("Digit found: %d\n", val);
