@@ -136,6 +136,12 @@ main(int argc, char *argv[], char *env[])
         }
     }
     printf("Total non-toucing values: %d\n", total_val);
+
+    /* For valgrind ;) */
+    for (int i = 0; i <= rows; i++) {
+        free(map[i]);
+    }
+    free(map);
 }
 
 

@@ -143,6 +143,14 @@ main(int argc, char *argv[], char *env[])
         }
     }
     printf("Total gear ratios is %d\n", gear_ratios);
+
+    /* For valgrind ;) */
+    for (int i = 0; i <= rows; i++) {
+        free(map[i]);
+    }
+    free(map);
+    free(star_totals);
+    free(star_touching);
 }
 
 
