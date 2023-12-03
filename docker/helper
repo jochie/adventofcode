@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Find the base of the git repository:
+DIR=$(git rev-parse --show-toplevel)
+docker run -v $DIR:$DIR -w $(pwd) -it advent
