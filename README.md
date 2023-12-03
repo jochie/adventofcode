@@ -1,6 +1,6 @@
 # Advent Of Code
 
-https://adventofcode.com/
+Check out the [AoC website itself](https://adventofcode.com/).
 
 # My solutions
 
