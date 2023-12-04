@@ -5,12 +5,14 @@
  * =======================================================================
  */
 
-# include <libgen.h>  /* basename()           */
-# include <stdbool.h> /* bool, true, false    */
-# include <stdio.h>   /* FILE, *printf(), etc */
-# include <stdlib.h>  /* exit()               */
-# include <string.h>  /* strlen()             */
-# include <unistd.h>  /* getopt()             */
+# include <libgen.h>     /* basename()           */
+# include <stdbool.h>    /* bool, true, false    */
+# include <stdio.h>      /* FILE, *printf(), etc */
+# include <stdlib.h>     /* exit()               */
+# include <string.h>     /* strlen()             */
+# include <unistd.h>     /* getopt()             */
+# include <sys/stat.h>   /* stat()               */
+# include <sys/errno.h>  /* errno                */
 
 # define MAX_LEN 1024
 
@@ -21,17 +23,55 @@ struct {
 } opts;
 
 
-void parse_options(int argc, char *argv[]);
+void process_file(FILE *);
+void parse_options(int *argc, char **argv[]);
 void print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode);
 
 
 int
 main(int argc, char *argv[], char *env[])
 {
-    parse_options(argc, argv);
+    parse_options(&argc, &argv);
 
+    if (argc == 0) {
+        if (opts.debug) {
+            printf("Processing data from stdin.\n");
+        }
+        process_file(stdin);
+        return 0;
+    }
+    for (int i = 0; i < argc; i++) {
+        struct stat st;
+        FILE *fd;
+
+        if (stat(argv[i], &st)) {
+            printf("File not found: '%s'\n", argv[i]);
+            return 1;
+        }
+
+        if (opts.debug) {
+            printf("Opening %s for reading.\n", argv[i]);
+        }
+        fd = fopen(argv[i], "r");
+        if (fd == NULL) {
+            printf("Failed to open '%s': %d (%s)\n", argv[i], errno, strerror(errno));
+            return 1;
+        }
+        if (opts.debug) {
+            printf("Processing data from '%s'.\n", argv[i]);
+        }
+        process_file(fd);
+        fclose(fd);
+    }
+}
+
+
+void
+process_file(FILE *fd)
+{
     char buf[MAX_LEN + 1];
-    while (NULL != fgets(buf, MAX_LEN, stdin)) {
+
+    while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
             buf[strlen(buf) - 1] = '\0';
@@ -45,21 +85,25 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
-
 void
-parse_options(int argc, char *argv[])
+parse_options(int *argc, char **argv[])
 {
     int ch;
+    char *argv0;
+
+    argv0 = (*argv)[0];
 
     opts.debug   = false;
     opts.dryrun  = false;
     opts.verbose = false;
 
-    if (argc == 1) {
+    if (*argc == 1) {
         /* What to do if there are no command line arguments */
+        *argc -= 1;
+        *argv += 1;
         return;
     }
-    while ((ch = getopt(argc, argv, "dnvh")) != -1) {
+    while ((ch = getopt(*argc, *argv, "dnvh")) != -1) {
         switch (ch) {
         case 'd':
             opts.debug = true;
@@ -71,18 +115,20 @@ parse_options(int argc, char *argv[])
             opts.verbose = true;
             break;
         case 'h':
-            print_usage(stdout, argv[0], NULL, true, EXIT_SUCCESS);
+            print_usage(stdout, (*argv)[0], NULL, true, EXIT_SUCCESS);
         case '?':
         default:
-            print_usage(stderr, argv[0], "\n", false, EXIT_FAILURE);
+            print_usage(stderr, (*argv)[0], "\n", false, EXIT_FAILURE);
         }
     }
-    argc -= optind;
-    if (argc > 0) {
+    *argc -= optind;
+    *argv += optind;
+#if 0
+    if (*argc > 0) {
         /* What to do with the non-option parameters? */
-        print_usage(stderr, argv[0], "Too many parameters provided.\n\n", false, EXIT_FAILURE);
+        print_usage(stderr, argv0, "Too many parameters provided.\n\n", false, EXIT_FAILURE);
     }
-    argv += optind;
+#endif
 }
 
 
@@ -100,7 +146,7 @@ NAME\n\
      %s - Program for AoC YYYY puzzles; Day X, part Z\n\
 \n\
 SYNOPSIS\n\
-     %s [OPTIONS]\n",
+     %s [OPTIONS] [<filename> ...]\n",
             name, name);
     if (!full) {
         exit(exitcode);
@@ -109,6 +155,8 @@ SYNOPSIS\n\
 \n\
 DESCRIPTION\n\
      This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     If filenames are provided, it will process them, one at a time.\n\
+     Otherwise it will process whatever it will read from standard input.\n\
 \n\
 OPTIONS\n\
      -d\n\
