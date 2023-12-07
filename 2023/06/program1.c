@@ -14,6 +14,12 @@
 # include <sys/stat.h>   /* stat()               */
 # include <sys/errno.h>  /* errno                */
 
+# define USE_MATH
+
+# ifdef USE_MATH
+# include <math.h>       /* sqrt()               */
+# endif
+
 # define MAX_LEN 1024
 
 struct {
@@ -110,6 +116,41 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("Race %d: %d ms; %d mm\n", i + 1, races[i].duration, races[i].distance);
         }
+# ifdef USE_MATH
+        /*
+         * Solving this equation:
+         *
+         * (dist - w) * w = dura
+         * dist * w - w^2 - dura = 0
+         * - w ^ 2 + dist * w - dura = 0
+         *
+         * That's of the form: a x ^2 + b x + c = 0
+         *
+         * https://en.wikipedia.org/wiki/Quadratic_equation
+         *
+         * a = -1
+         * b = dist
+         * c = -dura
+         *
+         * x = (-b +/- sqrt(b^2 - 4ac)) / (2a)
+         */
+        double a, b, c, s, x1, x2;
+
+        a = -1;
+        b = (double)races[i].duration;
+        c = -(double)races[i].distance;
+        s = sqrt(b * b - 4 * a * c);
+        x1 = (-b + s) / (2 * a);
+        x2 = (-b - s) / (2 * a);
+        x1 = floor(x1) + 1;
+        if (x2 - floor(x2) < 0.0001) {
+            x2 = floor(x2) - 1;
+        } else {
+            x2 = floor(x2);
+        }
+        double winners_alt = x2 - x1 + 1;
+        winners = (int)winners_alt;
+# else
         for (int wait = 1; wait < races[i].duration; wait++) {
             int distance = (races[i].duration - wait) * wait;
             if (opts.debug) {
@@ -119,6 +160,7 @@ process_file(FILE *fd)
                 winners++;
             }
         }
+# endif
         if (opts.debug) {
             printf("Ways to win: %d\n", winners);
         }
