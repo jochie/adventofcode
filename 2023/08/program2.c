@@ -70,7 +70,31 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+    char lr[300];
 
+    struct node {
+        char n[4];
+        char l[4];
+        int  l_i;
+        char r[4];
+        int  r_i;
+    } nodes[800];
+
+    /* get the first line with left-right directions */
+    fgets(lr, MAX_LEN, fd);
+    if (lr[strlen(lr) - 1] == '\n') {
+        lr[strlen(lr) - 1] = '\0';
+    }
+
+    if (opts.debug) {
+        printf("Left/right instructions: %s\n", lr);
+    }
+
+    /* skip the empty line */
+    fgets(buf, MAX_LEN, fd);
+
+    /* read the node connections */
+    int total = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,9 +103,150 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        sscanf(buf, "%[A-Z0-9] = (%[A-Z0-9], %[A-Z0-9])", nodes[total].n, nodes[total].l, nodes[total].r);
+        nodes[total].l_i = -1;
+        nodes[total].r_i = -1;
+        if (opts.debug) {
+            printf("Node %s points to %s and %s\n", nodes[total].n, nodes[total].l, nodes[total].r);
+        }
+        total++;
+    }
+    if (opts.debug) {
+        printf("Parsed %d nodes total.\n", total);
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
+    }
+
+    /* Resolve the l_i and r_i values, to speed things up? */
+    for (int i = 0; i < total; i++) {
+        for (int j = 0; j < total; j++) {
+            if (!strcmp(nodes[i].n, nodes[j].l)) {
+                nodes[j].l_i = i;
+            }
+            if (!strcmp(nodes[i].n, nodes[j].r)) {
+                nodes[j].r_i = i;
+            }
+        }
+    }
+    int current_node = 0;
+    int lr_index = 0;
+    long steps = 0;
+
+    struct a_node {
+        int i;
+        int f;
+        int s;
+    } a_nodes[10];
+    int a_total = 0;
+    for (int i = 0; i < total; i++) {
+        if (nodes[i].n[2] == 'A') {
+            a_nodes[a_total].i = i;
+            a_nodes[a_total].f = -1;
+            a_nodes[a_total].s = -1;
+            a_total++;
+            if (opts.debug) {
+                printf("Found A node #%d at %d: %s\n", a_total, i, nodes[i].n);
+            }
+        }
+    }
+
+    int a_nodes_done = 0;
+
+    while (true) {
+        bool all_on_z = true;
+        for (int i = 0; i < a_total; i++) {
+            if (nodes[a_nodes[i].i].n[2] == 'Z') {
+                if (opts.debug) {
+                    printf("A node %d is on %s after %ld steps\n", i, nodes[a_nodes[i].i].n, steps);
+                }
+                if (a_nodes[i].f == -1) {
+                    a_nodes[i].f = steps;
+                } else if (a_nodes[i].s == -1) {
+                    a_nodes[i].s = steps;
+                } else {
+                    a_nodes_done++;
+                }
+            } else {
+                all_on_z = false;
+            }
+        }
+        if (all_on_z || a_nodes_done == a_total) {
+            break;
+        }
+
+        if (opts.debug) {
+            printf("Going %c next\n", lr[lr_index]);
+        }
+        /* move all nodes along */
+        for (int i = 0; i < a_total; i++) {
+            char *node_to_find;
+            int next_node;
+
+            int current_node = a_nodes[i].i;
+            if (lr[lr_index] == 'L') {
+                node_to_find = nodes[current_node].l;
+                next_node    = nodes[current_node].l_i;
+            } else {
+                node_to_find = nodes[current_node].r;
+                next_node    = nodes[current_node].r_i;
+            }
+            if (opts.debug) {
+                printf("Next node: %s (%d)\n", node_to_find, next_node);
+            }
+            if (next_node == -1) {
+                printf("Something went wrong? We looked for %s but could not find it.\n",
+                       node_to_find);
+                exit(1);
+            }
+            if (opts.debug) {
+                printf("Index of %s is %d\n", node_to_find, next_node);
+            }
+            a_nodes[i].i = next_node;
+        }
+        steps++;
+        lr_index = (lr_index + 1) % strlen(lr);
+        if (opts.debug && steps % 1000 == 0) {
+            printf("Steps so far: %ld\n", steps);
+        }
+    }
+
+    struct a_step {
+        long steps;
+        long incr;
+    } a_steps[10];
+    for (int i = 0; i < a_total; i++) {
+        if (opts.debug) {
+            printf("A node arrived at Z nodes %d first, %d second (cycle is %d).\n",
+                   a_nodes[i].f,
+                   a_nodes[i].s,
+                   a_nodes[i].s - a_nodes[i].f);
+        }
+        a_steps[i].steps = a_nodes[i].f;
+        a_steps[i].incr = a_nodes[i].s - a_nodes[i].f;
+    }
+    while (true) {
+        bool done = true;
+
+        long steps = a_steps[0].steps;
+        long max_steps = a_steps[0].steps;
+        for (int i = 1; i < a_total; i++) {
+            if (a_steps[i].steps != steps) {
+                done = false;
+            }
+            if (a_steps[i].steps > max_steps) {
+                max_steps = a_steps[i].steps;
+            }
+        }
+        if (done) {
+            printf("Reached all **Z nodes after %ld steps.\n", steps);
+            exit(0);
+        }
+        for (int i = 0; i < a_total; i++) {
+            if (a_steps[i].steps < max_steps) {
+                a_steps[i].steps += a_steps[i].incr;
+            }
+        }
     }
 }
 

@@ -70,7 +70,31 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+    char lr[300];
 
+    struct node {
+        char n[4];
+        char l[4];
+        int  l_i;
+        char r[4];
+        int  r_i;
+    } nodes[800];
+
+    /* get the first line with left-right directions */
+    fgets(lr, MAX_LEN, fd);
+    if (lr[strlen(lr) - 1] == '\n') {
+        lr[strlen(lr) - 1] = '\0';
+    }
+
+    if (opts.debug) {
+        printf("Left/right instructions: %s\n", lr);
+    }
+
+    /* skip the empty line */
+    fgets(buf, MAX_LEN, fd);
+
+    /* read the node connections */
+    int total = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,10 +103,56 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        sscanf(buf, "%[A-Z] = (%[A-Z], %[A-Z])", nodes[total].n, nodes[total].l, nodes[total].r);
+        if (opts.debug) {
+            printf("Node %s points to %s and %s\n", nodes[total].n, nodes[total].l, nodes[total].r);
+        }
+        total++;
+    }
+    if (opts.debug) {
+        printf("Parsed %d nodes total.\n", total);
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    int current_node = 0;
+    int lr_index = 0;
+    int steps = 0;
+    while (strcmp(nodes[current_node].n, "ZZZ")) {
+        char *node_to_find;
+
+        if (opts.debug) {
+            printf("Going %c next\n", lr[lr_index]);
+        }
+
+        if (lr[lr_index] == 'L') {
+            node_to_find = nodes[current_node].l;
+        } else {
+            node_to_find = nodes[current_node].r;
+        }
+        if (opts.debug) {
+            printf("Next node: %s\n", node_to_find);
+        }
+        int next_node = -1;
+        for (int i = 0; i < total; i++) {
+            if (!strcmp(nodes[i].n, node_to_find)) {
+                next_node = i;
+                break;
+            }
+        }
+        if (next_node == -1) {
+            printf("Something went wrong? We looked for %s but could not find it.\n",
+                   node_to_find);
+            exit(1);
+        }
+        if (opts.debug) {
+            printf("Index of %s is %d\n", node_to_find, next_node);
+        }
+        current_node = next_node;
+        steps++;
+        lr_index = (lr_index + 1) % strlen(lr);
+    }
+    printf("Steps to get to ZZZ: %d\n", steps);
 }
 
 void
