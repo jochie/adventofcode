@@ -171,6 +171,14 @@ process_file(FILE *fd)
                 all_on_z = false;
             }
         }
+        /*
+         * Checking for all_on_z really only works for the sample
+         * file. Based on an observation of debug output at an earlier
+         * stage, we know that the various nodes ending in A keep
+         * landing on the same nodes ending in Z, over and over, so we
+         * need to know how long their cycles are, and keep going
+         * until they've all been there twice.
+         */
         if (all_on_z || a_nodes_done == a_total) {
             break;
         }
@@ -211,6 +219,25 @@ process_file(FILE *fd)
         }
     }
 
+    /*
+     * Now, knowing the cycle, we can take much bigger steps and don't
+     * need to move around the real nodes any longer.
+     *
+     * This is still overly generic. In the actual input I was given,
+     * two things were later apparent:
+     *
+     * 1. Each of the A nodes took as many steps to reach the Z node
+     *    the first time, as the second time, so we could actually
+     *    simplify this particular case with a least common multiple
+     *    of the 6 numbers.
+     * 2. All 6 of the A nodes have a cycle that is a multiple of 277.
+     *
+     * So the answer to the question is then:
+     *
+     * >>> 277 * (16343 / 277) * (11911 / 277) * (20221 / 277) *
+     *     (21883 / 277) * (13019 / 277) * (19667 / 277)
+     * 13524038372771
+     */
     struct a_step {
         long steps;
         long incr;
