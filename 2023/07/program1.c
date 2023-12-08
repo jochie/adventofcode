@@ -84,9 +84,8 @@ score_card(char card)
     return strlen(order) - (info - order) - 1;
 }
 
-/* Order like this:
- *
- * A K Q J T 9..2
+/*
+ * Helper function for sorting the cards based on their position in 'order'
  */
 int
 compare_chars(const void *a, const void *b)
