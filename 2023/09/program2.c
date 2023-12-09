@@ -71,6 +71,9 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int numbers[50];
+    int firsts[50];
+    int all_sums = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,7 +82,42 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        int total = 0;
+        int number;
+        char *info = buf;
+        int len;
+        while (strlen(info) && sscanf(info, "%d%n", &number, &len) > 0) {
+            numbers[total] = number;
+            total++;
+            info += len;
+        }
+        int total_orig = total;
+        int first = 0;
+        firsts[first] = numbers[0];
+        first++;
+        while (true) {
+            bool zeroes = true;
+            for (int i = 0; i < total - 1; i++) {
+                numbers[i] = numbers[i + 1] - numbers[i];
+                if (numbers[i] != 0) {
+                    zeroes = false;
+                }
+            }
+            firsts[first] = numbers[0];
+            first++;
+            total--;
+            if (zeroes) {
+                break;
+            }
+        }
+        int sum = 0;
+        while (first > 0) {
+            sum = firsts[first - 1] - sum;
+            first--;
+        }
+        all_sums += sum;
     }
+    printf("Combined previous steps: %d\n", all_sums);
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
