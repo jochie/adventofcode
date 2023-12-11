@@ -71,6 +71,18 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    char map[150][150];
+    int max_row = 0;
+    int max_col = 0;
+
+    struct coords {
+        int row;
+        int col;
+        int row_e; /* Expanded row */
+        int col_e; /* Expanded col */
+    } galaxies[500];
+    int galaxies_count = 0;
+
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,10 +91,89 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        strcpy(map[max_row], buf);
+        for (int j = 0; j < max_col; j++) {
+            if (buf[j] == '#') {
+                galaxies[galaxies_count].row = max_row;
+                galaxies[galaxies_count].col = j;
+                galaxies[galaxies_count].row_e = max_row;
+                galaxies[galaxies_count].col_e = j;
+                galaxies_count++;
+            }
+        }
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    if (opts.debug) {
+        printf("Galaxies found: %d\n", galaxies_count);
+    }
+
+    int expansion = 1000000;
+    /*
+     * Expand vertically
+     */
+    for (int i = 0; i < max_row; i++) {
+        bool empty = true;
+        for (int j = 0; j < max_col; j++) {
+            if (map[i][j] != '.') {
+                empty = false;
+                break;
+            }
+        }
+        if (empty) {
+            if (opts.debug) {
+                printf("Empty row: %d\n", i + 1);
+            }
+            for (int g = 0; g < galaxies_count; g++) {
+                if (galaxies[g].row > i) {
+                    galaxies[g].row_e += expansion - 1;
+                }
+            }
+        }
+    }
+    /*
+     * Expand horizontally
+     */
+    for (int i = 0; i < max_col; i++) {
+        bool empty = true;
+        for (int j = 0; j < max_col; j++) {
+            if (map[j][i] != '.') {
+                empty = false;
+                break;
+            }
+        }
+        if (empty) {
+            if (opts.debug) {
+                printf("Empty column: %d\n", i + 1);
+            }
+            for (int g = 0; g < galaxies_count; g++) {
+                if (galaxies[g].col > i) {
+                    galaxies[g].col_e += expansion - 1;
+                }
+            }
+        }
+    }
+
+    int pairings = 0;
+    long sum_distances = 0;
+    for (int i = 0; i < galaxies_count - 1; i++) {
+        for (int j = i + 1; j < galaxies_count; j++) {
+            pairings++;
+            long distance =
+                abs(galaxies[i].row_e - galaxies[j].row_e) +
+                abs(galaxies[i].col_e - galaxies[j].col_e);
+            if (opts.debug) {
+                printf("Pairing %d: %d and %d -> %ld\n", pairings, i + 1, j + 1, distance);
+            }
+            sum_distances += distance;
+        }
+    }
+    printf("Sum of all distances: %ld\n", sum_distances);
 }
 
 void
@@ -143,7 +234,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC 2023 puzzles; Day 11, part 2\n\
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +245,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC 2023 puzzles; Day 11, part 2.\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\
