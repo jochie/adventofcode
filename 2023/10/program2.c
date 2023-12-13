@@ -65,11 +65,53 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+char pipes_copy[150][150];
+char pipes[150][150];
+char plotter[300][300];
 
+void
+flood_fill(char c, int row, int col, int max_row, int max_col)
+{
+    /*    printf("Filling (%d, %d) with %c\n", row, col, c); */
+    plotter[row][col] = c;
+    if (row > 0 && plotter[row - 1][col] == '.') {
+        flood_fill(c, row - 1, col, max_row, max_col);
+    }
+    if (col > 0 && plotter[row][col - 1] == '.') {
+        flood_fill(c, row, col - 1, max_row, max_col);
+    }
+    if (row < max_row - 1 && plotter[row + 1][col] == '.') {
+        flood_fill(c, row + 1, col, max_row, max_col);
+    }
+    if (col < max_col - 1 && plotter[row][col + 1] == '.') {
+        flood_fill(c, row, col + 1, max_row, max_col);
+    }
+}
+
+
+enum direction {
+    UP    = 0,
+    RIGHT,
+    DOWN,
+    LEFT
+};
+
+/*
+ * | vertical pipe
+ * - horizontal pipe
+ * L 90-degree bend
+ * J 90-degree bend
+ * 7 90-degree bend
+ * F 90-degree bend
+ * . ground
+ * S starting position
+ */
 void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+
+    int row = -1, col = -1, max_row = 0, max_col = 0;
 
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
@@ -79,10 +121,243 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        strcpy(pipes[max_row], buf);
+        strcpy(pipes_copy[max_row], buf);
+        char *pos = strchr(buf, 'S');
+        if (NULL != pos) {
+            row = max_row;
+            col = pos - buf;
+            if (opts.debug) {
+                printf("Found the starting point at (%d, %d)\n", row, col);
+            }
+        }
+        max_row++;
     }
+    int max_p_row = max_row * 2 + 1;
+    int max_p_col = max_col * 2 + 1;
+    for (int i = 0; i < max_p_row; i++) {
+        for (int j = 0; j < max_p_col; j++) {
+            plotter[i][j] = '.';
+        }
+        plotter[i][max_p_col + 1] = '\0';
+    }
+    if (row == -1 && col == -1) {
+        printf("No starting point detected.\n");
+        exit(1);
+    }
+    plotter[row * 2 + 1][col * 2 + 1] = '+';
+    /*
+     * Just because, figure out what pipe the S represents
+     */
+    int left  = false;
+    int right = false;
+    int up    = false;
+    int down  = false;
+    if (col > 0) {
+        switch (pipes[row][col - 1]) {
+        case '-': case 'F': case 'L':
+            left = true;
+            break;
+        }
+    }
+    if (row > 0) {
+        switch (pipes[row - 1][col]) {
+        case '|': case '7': case 'F':
+            up = true;
+            break;
+        }
+    }
+    if (col < strlen(pipes[row]) - 1) {
+        switch (pipes[row][col + 1]) {
+        case '-': case 'J': case '7':
+            right = true;
+            break;
+        }
+    }
+    if (row < max_row - 1) {
+        switch (pipes[row + 1][col]) {
+        case '|': case 'L': case 'J':
+            down = true;
+            break;
+        }
+    }
+    char repl = '.';
+    if (left && right) {
+        repl = '-';
+    } else if (up && down) {
+        repl = '|';
+    } else if (up && right) {
+        repl = 'L';
+    } else if (up && left) {
+        repl = 'J';
+    } else if (down && left) {
+        repl = '7';
+    } else if (down && right) {
+        repl = 'F';
+    } else {
+        printf("Unexpected combination: (left, %d, up %d, right %d, down %d)\n",
+               left, up, right, down);
+        exit(1);
+    }
+    if (opts.debug) {
+        printf("Replacement symbol: %c\n", repl);
+    }
+    pipes[row][col] = repl;
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    enum direction dir; /* up 0, right 1, down 2, left 3 */
+    switch (repl) {
+    case '|': case 'L': case 'J':
+        dir = UP; break;
+    case '-': case 'F':
+        dir = RIGHT; break;
+    case '7':
+        dir = DOWN; break;
+    }
+    int distance = 0;
+    while (true) {
+        distance++;
+        int next_row, next_col;
+        pipes[row][col] = '*'; /* Mark as visited */
+        plotter[row * 2 + 1][col * 2 + 1] = '+';
+        switch (dir) {
+        case UP:
+            next_row = row - 1;
+            next_col = col;
+            plotter[row * 2 + 1 - 1][col * 2 + 1] = '+';
+            break;
+        case RIGHT:
+            next_row = row;
+            next_col = col + 1;
+            plotter[row * 2 + 1][col * 2 + 1 + 1] = '+';
+            break;
+        case DOWN:
+            next_row = row + 1;
+            next_col = col;
+            plotter[row * 2 + 1 + 1][col * 2 + 1] = '+';
+            break;
+        case LEFT:
+            next_row = row;
+            next_col = col - 1;
+            plotter[row * 2 + 1][col * 2 + 1 - 1] = '+';
+            break;
+        }
+        char next_symbol = pipes[next_row][next_col];
+        if (next_symbol == '*') {
+            if (opts.debug) {
+                printf("Reached a previously visited location after %d steps.\n", distance);
+            }
+            break;
+        }
+        switch (next_symbol) {
+        case '|':
+        case '-':
+            /* Can't change direction */
+            break;
+        case 'L':
+            if (dir == DOWN) {
+                /* From down to right */
+                dir = RIGHT;
+            } else if (dir == LEFT) {
+                /* From left to up */
+                dir = UP;
+            } else {
+                printf("Impossible direction change, running into %c at (%d, %d) while going %d\n",
+                       next_symbol, next_row, next_col, dir);
+                exit(1);
+            }
+            break;
+        case 'J':
+            if (dir == DOWN) {
+                /* From down to left */
+                dir = LEFT;
+            } else if (dir == RIGHT) {
+                /* From right to up */
+                dir = UP;
+            } else {
+                printf("Impossible direction change, running into %c at (%d, %d) while going %d\n",
+                       next_symbol, next_row, next_col, dir);
+                exit(1);
+            }
+            break;
+        case '7':
+            if (dir == UP) {
+                /* From up to left */
+                dir = LEFT;
+            } else if (dir == RIGHT) {
+                /* From right to down */
+                dir = DOWN;
+            } else {
+                printf("Impossible direction change, running into %c at (%d, %d) while going %d\n",
+                       next_symbol, next_row, next_col, dir);
+                exit(1);
+            }
+            break;
+        case 'F':
+            if (dir == UP) {
+                /* from up to right */
+                dir = RIGHT;
+            } else if (dir == LEFT) {
+                /* from left to down */
+                dir = DOWN;
+            } else {
+                printf("Impossible direction change, running into %c at (%d, %d) while going %d\n",
+                       next_symbol, next_row, next_col, dir);
+                exit(1);
+            }
+            break;
+        case '.':
+            printf("We ran into the ground at (%d, %d) after %d steps?\n",
+                   next_row, next_col, distance);
+            exit(1);
+        }
+        row = next_row;
+        col = next_col;
+    }
+
+    if (opts.debug) {
+        for (int i = 0; i < max_row; i++) {
+            printf("%s\n", pipes[i]);
+        }
+        printf("\n");
+        for (int i = 0; i < max_row * 2 + 1; i++) {
+            printf("%s\n", plotter[i]);
+        }
+        printf("\n");
+    }
+
+    flood_fill('*', 0, 0, max_p_row, max_p_col);
+
+    if (opts.debug) {
+        for (int i = 0; i < max_row * 2 + 1; i++) {
+            printf("%s\n", plotter[i]);
+        }
+        printf("\n");
+    }
+
+    int ground = 0;
+    for (int i = 0; i < max_row; i++) {
+        for (int j = 0; j < max_col; j++) {
+            if (plotter[i * 2 + 1][j * 2 + 1] == '.') {
+                pipes[i][j] = '.';
+                ground++;
+            } else {
+                pipes[i][j] = '+';
+            }
+        }
+    }
+
+    if (opts.debug) {
+        for (int i = 0; i < max_row; i++) {
+            printf("%s\n", pipes[i]);
+        }
+        printf("\n");
+    }
+    printf("Ground enclosed: %d\n", ground);
 }
 
 void
@@ -143,7 +418,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC 2023 puzzles; Day 10, part 2\n\
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +429,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC 2023 puzzles; Day 10, part 2.\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\
