@@ -65,12 +65,71 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+char map[50][50];
+
+bool
+reflecting_rows(int row1, int row2, int max_row, int max_col)
+{
+    for (int col = 0; col < max_col; col++) {
+        if (map[row1][col] != map[row2][col]) {
+            return false;
+        }
+    }
+    if (row1 == 0 || row2 == max_row - 1) {
+        return true;
+    }
+    return reflecting_rows(row1 - 1, row2 + 1, max_row, max_col);
+}
+
+bool
+reflecting_cols(int col1, int col2, int max_row, int max_col)
+{
+    for (int row = 0; row < max_row; row++) {
+        if (map[row][col1] != map[row][col2]) {
+            return false;
+        }
+    }
+    if (col1 == 0 || col2 == max_col - 1) {
+        return true;
+    }
+    return reflecting_cols(col1 - 1, col2 + 1, max_row, max_col);
+}
+
+int
+find_mirror(int max_row, int max_col)
+{
+    if (opts.debug) {
+        printf("Find a mirror in a %d x %d map.\n", max_row, max_col);
+    }
+
+    /* Look for a mirror between col and col+1 */
+    for (int col = 0; col < max_col - 1; col++) {
+        if (reflecting_cols(col, col + 1, max_row, max_col)) {
+            if (opts.debug) {
+                printf("  Reflecting columns %d and %d\n", col + 1, col + 2);
+            }
+            return col + 1;
+        }
+    }
+
+    /* Look for a mirror between row and row+1 */
+    for (int row = 0; row < max_row - 1; row++) {
+        if (reflecting_rows(row, row + 1, max_row, max_col)) {
+            if (opts.debug) {
+                printf("  Reflecting between rows %d and %d\n", row + 1, row + 2);
+            }
+            return (row + 1) * 100;
+        }
+    }
+    return 0;
+}
 
 void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
-
+    int max_row = 0, max_col = 0;
+    int summaries = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,10 +138,25 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        if (strlen(buf)) {
+            max_col = strlen(buf);
+            strcpy(map[max_row], buf);
+            max_row++;
+        } else {
+            if (max_row > 0) {
+                summaries += find_mirror(max_row, max_col);
+            }
+            max_row = 0;
+            max_col = 0;
+        }
+    }
+    if (max_row > 0) {
+        summaries += find_mirror(max_row, max_col);
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Summarizing all notes: %d\n", summaries);
 }
 
 void
@@ -143,7 +217,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC 2023 puzzles; Day 13, part 1\n\
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +228,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC 2023 puzzles; Day 13, part 1.\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\
