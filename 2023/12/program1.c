@@ -66,11 +66,78 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+bool
+valid_grouping(char record[MAX_LEN + 1], int group_total, int grouping[10])
+{
+    int detected[10];
+    int found = 0;
+    bool is_damage = record[0] == '#';
+    int damage_start;
+
+    if (is_damage) {
+        damage_start = 0;
+    }
+    for (int i = 1; i < strlen(record); i++) {
+        if (record[i] == '#') {
+            if (!is_damage) {
+                is_damage = true;
+                damage_start = i;
+            }
+        } else {
+            /* Must be '.' */
+            if (is_damage) {
+                detected[found] = i - damage_start;
+                found++;
+                is_damage = false;
+            }
+        }
+    }
+    /* there may be damage at the end */
+    if (is_damage) {
+        detected[found] = strlen(record) - damage_start;
+        found++;
+    }
+    if (found != group_total) {
+        return false;
+    }
+    bool matched = true;
+    for (int i = 0; i < found; i++) {
+        if (detected[i] != grouping[i]) {
+            matched = false;
+        }
+    }
+    return matched;
+}
+
+int
+valid_permutations(char record[MAX_LEN + 1], int group_total, int grouping[10])
+{
+    char *unknown;
+
+    unknown = strchr(record, '?');
+    if (NULL == unknown) {
+        /* No (more) unknown found, is this a match for the groupings? */
+        if (valid_grouping(record, group_total, grouping)) {
+            return 1;
+        }
+        return 0;
+    }
+    /* printf("Found unknown at position %ld\n", unknown - record); */
+    int found = 0;
+    unknown[0] = '#';
+    found += valid_permutations(record, group_total, grouping);
+    unknown[0] = '.';
+    found += valid_permutations(record, group_total, grouping);
+    unknown[0] = '?';
+    return found;
+}
+
 void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int perm_total = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,10 +146,37 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        char record[MAX_LEN + 1], groups[MAX_LEN + 1];
+        int grouping[10];
+        sscanf(buf, "%[?.#] %[0-9,]", record, groups);
+        if (opts.debug) {
+            printf("Record '%s' and groups '%s'\n", record, groups);
+        }
+        int group_total = 0;
+        char *cur = groups;
+        while (true) {
+            int n, len;
+
+            if (sscanf(cur, "%d%n", &n, &len)) {
+                grouping[group_total] = n;
+                group_total++;
+            }
+            cur += len;
+            if (cur[0] != ',') {
+                break;
+            }
+            cur++;
+        }
+        int perm = valid_permutations(record, group_total, grouping);
+        if (opts.debug) {
+            printf("  #Arrangements: %d\n", perm);
+        }
+        perm_total += perm;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Total #arrangements for this set: %d\n", perm_total);
 }
 
 void
@@ -143,7 +237,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC 2023 puzzles; Day 12, part 1\n\
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +248,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC 2023 puzzles; Day 12, part 1.\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\

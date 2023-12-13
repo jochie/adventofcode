@@ -66,11 +66,81 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+char record[MAX_LEN + 1];
+int group_total;
+int grouping[50];
+int needed[50];
+
+/* Keep track of previously calculated numbers of permutations in this */
+long permutations[50][MAX_LEN + 1];
+
+long
+map_groups(int pos, int found, char rec[MAX_LEN + 1])
+{
+    long orig_pos = pos;
+    long perm = 0;
+
+    /*
+     * Check cache
+     */
+    if (permutations[found][pos] >= 0) {
+        if (opts.debug) {
+            printf("Cache hit for group %d at position %d => %ld\n",
+                   found + 1, pos, permutations[found][pos]);
+        }
+        return permutations[found][pos];
+    }
+    if (opts.debug) {
+        printf("map_groups(%d, %d, ..., %d, ...) next group is %d wide, needs %d\n",
+               pos, found, group_total, grouping[found], needed[found]);
+    }
+    if (found == group_total) {
+        /* Make sure only . or ? left */
+        for (int i = pos; i < strlen(rec); i++) {
+            if (rec[i] == '#') {
+                return 0;
+            }
+        }
+        if (opts.debug) {
+            printf("Permutation found\n");
+        }
+        permutations[found][pos] = 1;
+        return 1;
+    }
+    /* As long as there is enough room */
+    while (strlen(rec) - pos >= needed[found]) {
+        int width = grouping[found];
+        /* Are the next X characters either '?' or '#' */
+        bool possible = true;
+        for (int i = 0; i < width; i++) {
+            if (rec[pos + i] == '.') {
+                possible = false;
+                break;
+            }
+        }
+        if (possible && rec[pos + width] != '#') {
+            /* ?, ., or \0 */
+            perm += map_groups(pos + width + 1, found + 1, rec);
+        }
+
+        if (rec[pos] == '#') {
+            break;
+        }
+
+        /* ? or . */
+        pos++;
+    }
+    permutations[found][orig_pos] = perm;
+    return perm;
+}
+
+
 void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    long perm_total = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -79,10 +149,79 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        char groups[MAX_LEN + 1];
+
+        sscanf(buf, "%[?.#] %[0-9,]", record, groups);
+        if (opts.debug) {
+            printf("Record '%s' and groups '%s'\n", record, groups);
+        }
+        group_total = 0;
+        char *cur = groups;
+        while (true) {
+            int n, len;
+
+            if (sscanf(cur, "%d%n", &n, &len)) {
+                grouping[group_total] = n;
+                group_total++;
+            }
+            cur += len;
+            if (cur[0] != ',') {
+                break;
+            }
+            cur++;
+        }
+        /*
+         * Unfold
+         */
+        for (int i = 1; i <= 5; i++) {
+            for (int j = 0; j < group_total; j++) {
+                grouping[group_total * i + j] = grouping[j];
+            }
+        }
+        char new_rec[MAX_LEN + 1];
+        strcpy(new_rec, record);
+        for (int i = 0; i < 4; i++) {
+            strcat(new_rec, "?");
+            strcat(new_rec, record);
+        }
+        strcpy(record, new_rec);
+        group_total *= 5;
+
+        /*
+         * Calculate space needed for each group, for some optimization
+         */
+        needed[group_total - 1] = grouping[group_total - 1];
+        for (int i = group_total - 2; i >= 0; i--) {
+            needed[i] = needed[i + 1] + 1 + grouping[i];
+        }
+
+        if (opts.debug) {
+            printf("New record:\n    %s\n", record);
+            printf("New group total:    %d\n", group_total);
+            printf("Groups and needed arrays:\n");
+            for (int i = 0; i < group_total; i++) {
+                printf("    %3d - %3d\n", grouping[i], needed[i]);
+            }
+        }
+
+        /*
+         * Prefill the 'permutations' array (a bit overkill, but meh)
+         */
+        for (int i = 0; i <= group_total; i++) {
+            for (int j = 0; j < MAX_LEN + 1; j++) {
+                permutations[i][j] = -1;
+            }
+        }
+        long perm = map_groups(0, 0, record);
+        if (opts.debug) {
+            printf("#Arrangements for %s: %ld\n", record, perm);
+        }
+        perm_total += perm;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Total #arrangements for this set: %ld\n", perm_total);
 }
 
 void
@@ -143,7 +282,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC 2023 puzzles; Day 12, part 2\n\
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +293,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC 2023 puzzles; Day 12, part 2.\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\
