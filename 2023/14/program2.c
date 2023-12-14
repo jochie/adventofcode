@@ -14,14 +14,16 @@
 # include <sys/stat.h>   /* stat()               */
 # include <sys/errno.h>  /* errno                */
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    14
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
 
 # define MAX_LEN 1024
+
+# define MAX_PATTERN 200
 
 struct {
     bool debug   : 1;
@@ -78,6 +80,137 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+char map[200][200];
+
+
+void
+shift_north(int max_row, int max_col)
+{
+    for (int col = 0; col < max_col; col++) {
+        int target = 0;
+
+        for (int row = 0; row < max_row; row++) {
+            switch (map[row][col]) {
+            case '#':
+                target = row + 1;
+                break;
+            case 'O':
+                if (row == target) {
+                    target++;
+                } else {
+                    map[target][col] = 'O';
+                    map[row][col] = '.';
+                    target++;
+                }
+                break;
+            case '.':
+                break;
+            }
+        }
+    }
+}
+
+
+void
+shift_east(int max_row, int max_col)
+{
+    for (int row = 0; row < max_row; row++) {
+        int target = 0;
+
+        for (int col = 0; col < max_col; col++) {
+            switch (map[row][col]) {
+            case '#':
+                target = col + 1;
+                break;
+            case 'O':
+                if (col == target) {
+                    target++;
+                } else {
+                    map[row][target] = 'O';
+                    map[row][col] = '.';
+                    target++;
+                }
+                break;
+            case '.':
+                break;
+            }
+        }
+    }
+}
+
+
+void
+shift_south(int max_row, int max_col)
+{
+    for (int col = 0; col < max_col; col++) {
+        int target = max_row - 1;
+
+        for (int row = max_row - 1; row >= 0; row--) {
+            switch (map[row][col]) {
+            case '#':
+                target = row - 1;
+                break;
+            case 'O':
+                if (row == target) {
+                    target--;
+                } else {
+                    map[target][col] = 'O';
+                    map[row][col] = '.';
+                    target--;
+                }
+                break;
+            case '.':
+                break;
+            }
+        }
+    }
+}
+
+
+void
+shift_west(int max_row, int max_col)
+{
+    for (int row = 0; row < max_row; row++) {
+        int target = max_col - 1;
+
+        for (int col = max_col - 1; col >= 0; col--) {
+            switch (map[row][col]) {
+            case '#':
+                target = col - 1;
+                break;
+            case 'O':
+                if (col == target) {
+                    target--;
+                } else {
+                    map[row][target] = 'O';
+                    map[row][col] = '.';
+                    target--;
+                }
+                break;
+            case '.':
+                break;
+             }
+        }
+    }
+}
+
+
+int
+calculate_load(int max_row, int max_col)
+{
+    int load = 0;
+
+    for (int col = 0; col < max_col; col++) {
+        for (int row = 0; row < max_row; row++) {
+            if (map[row][col] == 'O') {
+                load += (max_row - row);
+            }
+        }
+    }
+    return load;
+}
+
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -87,7 +220,11 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
-
+    int max_row = 0, max_col = 0;
+    int repetitions[MAX_PATTERN];
+    for (int i = 0; i < MAX_PATTERN; i++) {
+        repetitions[i] = 0;
+    }
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -96,10 +233,64 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        strcpy(map[max_row], buf);
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    for (int cycle = 1; cycle < MAX_PATTERN * 5; cycle++) {
+        shift_north(max_row, max_col);
+        shift_east(max_row, max_col);
+        shift_south(max_row, max_col);
+        shift_west(max_row, max_col);
+        int load = calculate_load(max_row, max_col);
+        if (opts.debug) {
+            printf("Cycle %d - Total load: %d\n", cycle + 1, load);
+        }
+        int detections = 0;
+        for (int i = 0; i < MAX_PATTERN; i++) {
+            if (repetitions[i] == load) {
+                detections++;
+                if (detections == 2) {
+                    int length = i + 1;
+                    if (length > 2 && length % 2 == 0) {
+                        length /= 2;
+                        if (opts.debug) {
+                            printf("Found 2 repeats at cycle %d (%d) - checking pattern\n", cycle, i);
+                        }
+                        bool repeating = true;
+                        for (int j = 0; j < length; j++) {
+                            if (repetitions[j] != repetitions[j + length]) {
+                                repeating = false;
+                                break;
+                            }
+                        }
+                        if (repeating) {
+                            printf("Confirmed the pattern fully repeats at cycle %d (length of pattern is %d)!\n", cycle, length);
+                            long remainder = 1000000000 - cycle;
+                            printf("  Remaining cycles: %ld\n", remainder);
+                            printf("  Full pattern repeats in that: %ld\n", remainder / length);
+                            long cycles_left = remainder % length;
+                            printf("  Cycles remaining after that: %ld\n", cycles_left);
+                            printf("The final load after those cycles: %d\n",
+                                   repetitions[length - 1 - cycles_left]);
+                            exit(0);
+                        }
+                    }
+                }
+            }
+        }
+        for (int i = MAX_PATTERN - 1; i >= 1; i--) {
+            repetitions[i] = repetitions[i - 1];
+        }
+        repetitions[0] = load;
+    }
+    int load = calculate_load(max_row, max_col);
+    printf("Final total load: %d\n", load);
 }
 
 

@@ -14,9 +14,9 @@
 # include <sys/stat.h>   /* stat()               */
 # include <sys/errno.h>  /* errno                */
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    14
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -78,6 +78,69 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+char map[200][200];
+
+void
+print_map(int max_row)
+{
+    for (int i = 0; i < max_row; i++) {
+        printf("%s\n", map[i]);
+    }
+    printf("\n");
+}
+
+void
+shift_north(int max_row, int max_col)
+{
+    for (int col = 0; col < max_col; col++) {
+        int target = 0;
+
+        if (opts.debug) {
+            printf("Column %d:\n", col);
+        }
+        for (int row = 0; row < max_row; row++) {
+            switch (map[row][col]) {
+            case '#':
+                target = row + 1;
+                if (opts.debug) {
+                    printf("(%d,%d) Setting next target to %d\n", row, col, target);
+                }
+                break;
+            case 'O':
+                if (row == target) {
+                    target++;
+                } else {
+                    if (opts.debug) {
+                        printf("Moving O at (%d,%d) to (%d,%d)\n",
+                               row, col, target, col);
+                    }
+                    map[target][col] = 'O';
+                    map[row][col] = '.';
+                    target++;
+                }
+                break;
+            case '.':
+                break;
+            }
+        }
+    }
+}
+
+int
+calculate_load(int max_row, int max_col)
+{
+    int load = 0;
+
+    for (int col = 0; col < max_col; col++) {
+        for (int row = 0; row < max_row; row++) {
+            if (map[row][col] == 'O') {
+                load += (max_row - row);
+            }
+        }
+    }
+    return load;
+}
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -87,6 +150,7 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+    int max_row = 0, max_col = 0;
 
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
@@ -96,10 +160,25 @@ process_file(FILE *fd)
         if (opts.debug) {
             printf("DEBUG: Line received: '%s'\n", buf);
         }
+        strcpy(map[max_row], buf);
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    if (opts.debug) {
+        print_map(max_row);
+    }
+    shift_north(max_row, max_col);
+    if (opts.debug) {
+        print_map(max_row);
+    }
+
+    int load = calculate_load(max_row, max_col);
+    printf("Total load: %d\n", load);
 }
 
 
