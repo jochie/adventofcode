@@ -14,12 +14,19 @@
 # include <sys/stat.h>   /* stat()               */
 # include <sys/errno.h>  /* errno                */
 
+# define YEAR YYYY
+# define DAY    DD
+# define PART    Z
+
+# define STR(x) _STR(x)
+# define _STR(x) #x
+
 # define MAX_LEN 1024
 
 struct {
-    bool debug;
-    bool dryrun;
-    bool verbose;
+    bool debug   : 1;
+    bool dryrun  : 1;
+    bool verbose : 1;
 } opts;
 
 
@@ -28,6 +35,11 @@ void parse_options(int *argc, char **argv[]);
 void print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode);
 
 
+/*
+ * Main code block which checks the options and either read files (if
+ * provided after the options), or whatever is fed to it on stdin,
+ * calling process_file() for it.
+ */
 int
 main(int argc, char *argv[], char *env[])
 {
@@ -66,6 +78,11 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+/*
+ * Read from the filedescriptor (whether it's stdin or an actual file)
+ * until we reach the end. Strip newlines, and then do what needs to
+ * be done.
+ */
 void
 process_file(FILE *fd)
 {
@@ -85,6 +102,11 @@ process_file(FILE *fd)
     }
 }
 
+
+/*
+ * Minimal option parsing. As it stands, the program actually only
+ * does something for -d and -h, but it's the thought that counts?
+ */
 void
 parse_options(int *argc, char **argv[])
 {
@@ -132,6 +154,9 @@ parse_options(int *argc, char **argv[])
 }
 
 
+/*
+ * Print a minimal usage blurb for the program.
+ */
 void
 print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
 {
@@ -143,7 +168,7 @@ print_usage(FILE *f, char *argv0, char *prefix, bool full, int exitcode)
     name = basename(argv0);
     fprintf(f, "\
 NAME\n\
-     %s - Program for AoC YYYY puzzles; Day X, part Z\n\
+     %s - Program for AoC " STR(YEAR) " puzzles; Day " STR(DAY) ", part " STR(PART) "\n \
 \n\
 SYNOPSIS\n\
      %s [OPTIONS] [<filename> ...]\n",
@@ -154,7 +179,7 @@ SYNOPSIS\n\
     fprintf(f, "\
 \n\
 DESCRIPTION\n\
-     This program is used for one of the AoC YYYY puzzles; Day X, part Z.\n\
+     This program is used for one of the AoC " STR(YEAR) " puzzles; Day " STR(DAY) ", part " STR(PART) ".\n\
      If filenames are provided, it will process them, one at a time.\n\
      Otherwise it will process whatever it will read from standard input.\n\
 \n\
