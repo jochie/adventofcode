@@ -16,14 +16,14 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    15
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
 
-# define MAX_LEN 1024
+# define MAX_LEN 32768
 
 struct {
     bool debug   : 1;
@@ -81,6 +81,20 @@ main(int argc, char *argv[], char *env[])
 
 
 /*
+ * Calculate the HASH hash
+ */
+int
+process_step(char *step)
+{
+    int val = 0;
+    for (int i = 0; i < strlen(step); i++) {
+        val = ((val + step[i]) * 17) % 256;
+    }
+    return val;
+}
+
+
+/*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
  * be done.
@@ -90,6 +104,7 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int sum_hash = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,7 +122,29 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char *cur = buf;
+        while (true) {
+            char *sep;
+
+            sep = strchr(cur, ',');
+            if (NULL != sep) {
+                sep[0] = '\0';
+            }
+            if (opts.debug) {
+                printf("Step: %s\n", cur);
+            }
+            int hash = process_step(cur);
+            if (opts.debug) {
+                printf("  Hash: %d\n", hash);
+            }
+            sum_hash += hash;
+            if (NULL == sep) {
+                break;
+            }
+            cur = sep + 1;
+        }
     }
+    printf("Sum of the hashes: %d\n", sum_hash);
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }

@@ -16,14 +16,14 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    15
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
 
-# define MAX_LEN 1024
+# define MAX_LEN 32768
 
 struct {
     bool debug   : 1;
@@ -81,6 +81,139 @@ main(int argc, char *argv[], char *env[])
 
 
 /*
+ * Data structure to keep my head sane, with ample buffer for however
+ * many lenses might theoretically end up in one of the boxes, and
+ * crazy extra space for the labels, much more than we saw in practice
+ * in the input.
+ */
+struct box {
+    int total;
+    struct lens {
+        char label[100];
+        int focal;
+    } lenses[100];
+} boxes[256];
+
+
+/*
+ * If a lens with the same label is already present, put this one in
+ * its place. Otherwise add an entry at the end of the list.
+ */
+void
+add_to_box(int box, char *label, int focal)
+{
+    int total = boxes[box].total;
+
+    if (total == 0) {
+        strcpy(boxes[box].lenses[0].label, label);
+        boxes[box].lenses[0].focal = focal;
+        boxes[box].total = 1;
+        return;
+    }
+    for (int i = 0; i < boxes[box].total; i++) {
+        if (!strcmp(boxes[box].lenses[i].label, label)) {
+            /* Replace this lens */
+            boxes[box].lenses[i].focal = focal;
+            return;
+        }
+    }
+    strcpy(boxes[box].lenses[total].label, label);
+    boxes[box].lenses[total].focal = focal;
+    boxes[box].total++;
+}
+
+
+/*
+ * If a lens with the same label is found, remove it, and shift the
+ * other lenses forward
+ */
+void
+remove_from_box(int box, char *label)
+{
+    for (int i = 0; i < boxes[box].total; i++) {
+        if (!strcmp(boxes[box].lenses[i].label, label)) {
+            for (int j = i; j < boxes[box].total; j++) {
+                strcpy(boxes[box].lenses[j].label, boxes[box].lenses[j + 1].label);
+                boxes[box].lenses[j].focal = boxes[box].lenses[j + 1].focal;
+            }
+            boxes[box].total--;
+            return;
+        }
+    }
+}
+
+/*
+ * Process one of the lens placement instructions
+ */
+void
+process_step(char *step)
+{
+    char label[100];
+
+    int val = 0;
+    int i = 0;
+    for (; i < strlen(step); i++) {
+        if (step[i] >= 'a' && step[i] <= 'z') {
+            label[i] = step[i];
+            val = ((val + step[i]) * 17) % 256;
+        } else {
+            /* Collect label characters as we go. */
+            label[i] = '\0';
+            break;
+        }
+    }
+
+    int foc_len;
+
+    if (opts.debug) {
+        printf("Label %s value: %d\n", label, val);
+    }
+    switch (step[i]) {
+    case '=':
+        foc_len = step[i + 1] - '0';
+        if (opts.debug) {
+            printf("focal length for box %d: %d\n", val, foc_len);
+        }
+        add_to_box(val, label, foc_len);
+        break;
+    case '-':
+        if (opts.debug) {
+            printf("Remove lens from box %d?\n", val);
+        }
+        remove_from_box(val, label);
+        break;
+    }
+    if (opts.debug) {
+        for (int i = 0; i < 256; i++) {
+            if (boxes[i].total > 0) {
+                printf("Box %d:", i);
+                for (int j = 0; j < boxes[i].total; j++) {
+                    printf(" [%s %d]", boxes[i].lenses[j].label, boxes[i].lenses[j].focal);
+                }
+                printf("\n");
+            }
+        }
+        printf("\n");
+    }
+}
+
+
+/*
+ * Calculate the focal power of the lenses in one of the boxes
+ */
+int
+box_power(int box)
+{
+    int power = 0;
+
+    for (int i = 0; i < boxes[box].total; i++) {
+        power += (box + 1) * (i + 1) * boxes[box].lenses[i].focal;
+    }
+    return power;
+}
+
+
+/*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
  * be done.
@@ -90,6 +223,9 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    for (int i = 0; i < 256; i++) {
+        boxes[i].total = 0;
+    }
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,7 +243,35 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char *cur = buf;
+        while (true) {
+            char *sep;
+
+            sep = strchr(cur, ',');
+            if (NULL != sep) {
+                sep[0] = '\0';
+            }
+            if (opts.debug) {
+                printf("Step: %s\n", cur);
+            }
+            process_step(cur);
+            if (NULL == sep) {
+                break;
+            }
+            cur = sep + 1;
+        }
     }
+    int sum_power = 0;
+    for (int i = 0; i < 256; i++) {
+        if (boxes[i].total > 0) {
+            int power = box_power(i);
+            if (opts.debug) {
+                printf("Box %d power: %d\n", i, power);
+            }
+            sum_power += power;
+        }
+    }
+    printf("Sum of power: %d\n", sum_power);
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
