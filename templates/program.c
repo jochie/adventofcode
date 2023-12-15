@@ -14,6 +14,8 @@
 # include <sys/stat.h>   /* stat()               */
 # include <sys/errno.h>  /* errno                */
 
+# include <openssl/sha.h>
+
 # define YEAR YYYY
 # define DAY    DD
 # define PART    Z
@@ -94,7 +96,16 @@ process_file(FILE *fd)
             buf[strlen(buf) - 1] = '\0';
         }
         if (opts.debug) {
-            printf("DEBUG: Line received: '%s'\n", buf);
+            unsigned char digest[SHA256_DIGEST_LENGTH];
+            char hexdigest[SHA256_DIGEST_LENGTH * 2 + 1];
+
+            SHA256((unsigned char *)buf, strlen(buf), digest);
+
+            for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+                sprintf(&hexdigest[i * 2], "%02x", (unsigned int)digest[i]);
+            }
+
+            printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
     }
     if (opts.debug) {
