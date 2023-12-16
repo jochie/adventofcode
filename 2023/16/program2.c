@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    16
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -80,6 +80,218 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+typedef enum direction {
+    UP = 0, RIGHT, DOWN, LEFT
+} direction;
+
+char direction_chars[sizeof(direction)] = {'^', '>', 'v', '<'};
+
+direction trans_backslash[sizeof(direction)] = { LEFT, DOWN, RIGHT, UP };
+direction trans_slash[sizeof(direction)] = { RIGHT, UP, LEFT, DOWN };
+
+int max_row = 0, max_col = 0;
+char map[120][120];
+
+struct meta {
+    bool energized  : 1;
+    bool seen[sizeof(direction)];
+} metadata[120][120];
+
+int energized_total;
+
+void
+meta_init(int max_row, int max_col)
+{
+    for (int i = 0; i < max_row; i++) {
+        for (int j = 0; j < max_col; j++) {
+            metadata[i][j].energized   = false;
+            for (int k = 0; k < sizeof(direction); k++) {
+                metadata[i][j].seen[k] = false;
+            }
+        }
+    }
+    energized_total = 0;
+}
+
+# define MAX_BEAMS 100
+
+struct beam {
+    direction dir;
+    int row;
+    int col;
+    bool done;
+} beams[MAX_BEAMS];
+int beam_count = 0;
+
+
+void
+beam_init()
+{
+    beam_count = 0;
+}
+
+void
+beam_add(int row, int col, direction dir)
+{
+    if (beam_count == MAX_BEAMS) {
+        printf("Failed to add another beam. Increase the max (currently %d)\n", MAX_BEAMS);
+        exit(1);
+    }
+    beams[beam_count].row = row;
+    beams[beam_count].col = col;
+    beams[beam_count].dir = dir;
+    beams[beam_count].done = false;
+    beam_count++;
+}
+
+void
+beam_compact()
+{
+    int target = 0;
+    for (int i = 0; i < beam_count; i++) {
+        if (beams[i].done) {
+            continue;
+        }
+        if (i == target) {
+            target++;
+            continue;
+        }
+        beams[target].dir = beams[i].dir;
+        beams[target].row = beams[i].row;
+        beams[target].col = beams[i].col;
+        beams[target].done = false;
+        target++;
+    }
+    beam_count = target;
+}
+
+void
+next_position(int *row, int *col, direction dir)
+{
+    switch (dir) {
+    case UP:    (*row)--; break;
+    case RIGHT: (*col)++; break;
+    case DOWN:  (*row)++; break;
+    case LEFT:  (*col)--; break;
+    }
+}
+
+int
+calc_energized_total(int row, int col, direction dir)
+{
+    /*
+     * Now the show begins
+     */
+    int round = 0;
+
+    meta_init(max_row, max_col);
+
+    beam_init();
+    /* Starting position and direction of the first and only beam */
+    beam_add(row, col, dir);
+
+    while (true) {
+        round++;
+
+        /* Compacting the list of beams */
+        beam_compact();
+        if (beam_count == 0) {
+            break;
+        }
+        if (opts.debug) {
+            printf("Round %d - %d beams, %d squares energized\n",
+                   round, beam_count, energized_total);
+            for (int i = 0; i < max_row; i++) {
+                printf("  %s\n", map[i]);
+            }
+            printf("\n");
+        }
+        for (int i = beam_count - 1; i >= 0; i--) {
+            if (beams[i].done) {
+                continue;
+            }
+            int cur_row = beams[i].row;
+            int cur_col = beams[i].col;
+            direction cur_dir = beams[i].dir;
+
+            if (opts.debug) {
+                printf("  Beam %d at (%d,%d) - %d\n",
+                       i, cur_row, cur_col, cur_dir);
+            }
+            next_position(&cur_row, &cur_col, cur_dir);
+            if (cur_row < 0 || cur_row >= max_row || cur_col < 0 || cur_col >= max_row) {
+                if (opts.debug) {
+                    printf("  Beam %d left the grid.\n", i);
+                }
+                beams[i].done = true;
+                continue;
+            }
+            beams[i].row = cur_row;
+            beams[i].col = cur_col;
+
+            if (!metadata[cur_row][cur_col].energized) {
+                metadata[cur_row][cur_col].energized = true;
+                energized_total++;
+            }
+            if (metadata[cur_row][cur_col].seen[cur_dir]) {
+                if (opts.debug) {
+                    printf("  Beam %d covers a direction/position seen previously\n", i);
+                }
+                beams[i].done = true;
+                continue;
+            }
+            metadata[cur_row][cur_col].seen[cur_dir] = true;
+            switch (map[cur_row][cur_col]) {
+            case '.':
+                if (opts.debug) {
+                    map[cur_row][cur_col] = direction_chars[cur_dir];
+                }
+                break;
+            case '>': case '<': case 'v': case '^':
+                break; /* Originally '.' */
+            case '|':
+                switch (cur_dir) {
+                case LEFT:
+                case RIGHT:
+                    /* Split into an up and down beam */
+                    beams[i].dir = UP;
+
+                    beam_add(cur_row, cur_col, DOWN);
+                    break;
+                default:
+                    break;
+                }
+                break;
+            case '-':
+                switch (cur_dir) {
+                case UP:
+                case DOWN:
+                    /* Split into a left and right beam */
+                    beams[i].dir = LEFT;
+
+                    beam_add(cur_row, cur_col, RIGHT);
+                    break;
+                default:
+                    break;
+                }
+                break;
+            case '\\':
+                beams[i].dir = trans_backslash[cur_dir]; break;
+            case '/':
+                beams[i].dir = trans_slash[cur_dir]; break;
+            default:
+                printf("What character did I miss? %c at (%d,%d)\n",
+                       map[cur_row][cur_col], cur_row, cur_col);
+                exit(1);
+            }
+        }
+    }
+    if (opts.debug) {
+        printf("Energized spots; %d\n", energized_total);
+    }
+    return energized_total;
+}
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -90,6 +302,7 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    max_row = 0; max_col = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +320,50 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        strcpy(map[max_row], buf);
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+
+    int max_total = 0;
+    for (int row = 0; row < max_row; row++) {
+        int total = calc_energized_total(row, -1, RIGHT);
+        if (opts.debug) {
+            printf("Total when starting from (%d,%d): %d\n", row, -1, total);
+        }
+        if (total > max_total) {
+            max_total = total;
+        }
+        total = calc_energized_total(row, max_col, LEFT);
+        if (opts.debug) {
+            printf("Total when starting from (%d,%d): %d\n", row, max_col, total);
+        }
+        if (total > max_total) {
+            max_total = total;
+        }
+    }
+    for (int col = 0; col < max_col; col++) {
+        int total = calc_energized_total(-1, col, DOWN);
+        if (opts.debug) {
+            printf("Total when starting from (%d,%d): %d\n", -1, col, total);
+        }
+        if (total > max_total) {
+            max_total = total;
+        }
+        total = calc_energized_total(max_row, col, UP);
+        if (opts.debug) {
+            printf("Total when starting from (%d,%d): %d\n", max_row, col, total);
+        }
+        if (total > max_total) {
+            max_total = total;
+        }
+    }
+    printf("Maximum energized spots; %d\n", max_total);
 }
 
 
