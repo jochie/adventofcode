@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    17
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,6 +79,148 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+typedef enum direction {
+    UP, RIGHT, DOWN, LEFT
+} direction;
+
+
+int max_row = 0, max_col = 0;
+char map[150][150];
+int min_loss = 0;
+int min_dir_loss[150][150][sizeof(direction) * 3];
+
+void
+next_position(int row, int col, direction dir, int *next_row, int *next_col) {
+    *next_row = row;
+    *next_col = col;
+
+    switch (dir) {
+    case UP:    (*next_row)--; break;
+    case RIGHT: (*next_col)++; break;
+    case DOWN:  (*next_row)++; break;
+    case LEFT:  (*next_col)--; break;
+    }
+}
+
+# define MAX_TRACE 1000
+
+void
+show_trace(int trace[MAX_TRACE], int count)
+{
+    char copy[150][150];
+    char border[152];
+
+    border[0] = '+';
+    border[max_col + 1] = '+';
+    for (int col = 0; col < max_col; col++) {
+        border[col + 1] = '-';
+    }
+    border[max_col + 2] = '\0';
+    for (int row = 0; row < max_row; row++) {
+        strcpy(copy[row], map[row]);
+    }
+    for (int i = 0; i < count; i++) {
+        int t_row = trace[i] / max_col;
+        int t_col = trace[i] % max_col;
+        copy[t_row][t_col] = ' ';
+    }
+    copy[max_row - 1][max_col -1] = ' ';
+    printf("%s\n", border);
+    for (int row = 0; row < max_row; row++) {
+        printf("|%s|\n", copy[row]);
+    }
+    printf("%s\n", border);
+}
+
+void
+find_loss(int loss, int row, int col, direction dir, int repeats, int trace[MAX_TRACE], int count)
+{
+    if (opts.debug) {
+        printf("find_loss(%d, %d, %d, %d, %d)\n", loss, row, col, dir, repeats);
+    }
+    if (min_loss > 0 && loss > min_loss) {
+        /* No point continuing */
+        return;
+    }
+    /* Try all directions */
+    for (int d = 0; d < sizeof(direction); d++) {
+        int next_row, next_col;
+
+        if (dir == d + 2 || d == dir + 2) {
+            if (opts.debug) {
+                printf("Can't reverse (current dir %d, possible dir %d)\n", dir, d);
+            }
+            continue;
+        }
+        if (dir == d && repeats == 3) {
+            if (opts.debug) {
+                printf("Can't go another step in that direction (%d)\n", dir);
+            }
+            continue;
+        }
+        next_position(row, col, d, &next_row, &next_col);
+        if (next_row < 0 || next_col < 0 || next_row == max_row || next_col == max_col) {
+            if (opts.debug) {
+                printf("That would take us off the board (%d, %d)\n", next_row, next_col);
+            }
+            continue;
+        }
+        int new_loss = loss + map[next_row][next_col] - '0';
+        if (next_row == max_row - 1 && next_col == max_col - 1) {
+            if (min_loss == 0 || new_loss < min_loss) {
+                min_loss = new_loss;
+                if (opts.verbose) {
+                    printf("Reached the destination with loss %d\n", new_loss);
+                    if (opts.debug) {
+                        printf("TRACE: ");
+                        for (int i = 0; i < count; i++) {
+                            int t_row = trace[i] / max_col;
+                            int t_col = trace[i] % max_col;
+                            printf(" (%d,%d)", t_row, t_col);
+                        }
+                    }
+                    show_trace(trace, count);
+                    printf("\n");
+                }
+            }
+            continue;
+        }
+        int dir_loss;
+        if (dir == d) {
+            dir_loss = repeats * sizeof(direction) + d;
+        } else {
+            dir_loss = d;
+        }
+        if (min_dir_loss[next_row][next_col][dir_loss] > 0 && new_loss >= min_dir_loss[next_row][next_col][dir_loss]) {
+            if (opts.debug) {
+                printf("This is equal or worse than an earlier attempt, for (%d,%d) %d.\n",
+                       next_row, next_col, dir_loss);
+            }
+            continue;
+        }
+        min_dir_loss[next_row][next_col][dir_loss] = new_loss;
+        int new_trace = next_row * max_col + next_col;
+        if (count == MAX_TRACE) {
+            printf("Oops. Need to increase the trace size.\n");
+            exit(1);
+        }
+        trace[count] = new_trace;
+        bool found = false;
+        for (int i = 0; i < count; i++ ) {
+            if (trace[i] == new_trace) {
+                found = true;
+            }
+        }
+        if (found) {
+            continue;
+        }
+        if (dir == d) {
+            find_loss(new_loss, next_row, next_col, d, repeats + 1, trace, count + 1);
+        } else {
+            find_loss(new_loss, next_row, next_col, d, 1, trace, count + 1);
+        }
+    }
+}
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -90,6 +232,7 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    max_row = 0; max_col = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +250,28 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        strcpy(map[max_row], buf);
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    min_loss = 0;
+    for (int row = 0; row < max_row; row++) {
+        for (int col = 0; col < max_col; col++) {
+            for (int i = 0; i < sizeof(direction) * 3; i++) {
+                min_dir_loss[row][col][i] = 0;
+            }
+        }
+    }
+    int trace[MAX_TRACE];
+    trace[0] = 0;
+    find_loss(0, 0, 0, RIGHT, 0, trace, 1);
+    find_loss(0, 0, 0, DOWN, 0, trace, 1);
+    printf("Minimum heat loss found: %d\n", min_loss);
 }
 
 
