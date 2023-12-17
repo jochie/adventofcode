@@ -250,29 +250,19 @@ calc_energized_total(int row, int col, direction dir)
             case '>': case '<': case 'v': case '^':
                 break; /* Originally '.' */
             case '|':
-                switch (cur_dir) {
-                case LEFT:
-                case RIGHT:
+                if (cur_dir == LEFT || cur_dir == RIGHT) {
                     /* Split into an up and down beam */
                     beams[i].dir = UP;
 
                     beam_add(cur_row, cur_col, DOWN);
-                    break;
-                default:
-                    break;
                 }
                 break;
             case '-':
-                switch (cur_dir) {
-                case UP:
-                case DOWN:
+                if (cur_dir == UP || cur_dir == DOWN) {
                     /* Split into a left and right beam */
                     beams[i].dir = LEFT;
 
                     beam_add(cur_row, cur_col, RIGHT);
-                    break;
-                default:
-                    break;
                 }
                 break;
             case '\\':
