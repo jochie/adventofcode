@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    18
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -80,6 +80,141 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+typedef enum direction {
+    UP, RIGHT, DOWN, LEFT
+} direction;
+
+/* A quick pre-scan of the input file was done to determine this would
+   be sufficient */
+# define GRID_SIZE 2200
+# define GRID_ZERO 1100
+
+typedef enum gridcell {
+    EMPTY,
+    TRENCH,
+    FLOOD
+} gridcell;
+
+gridcell grid[GRID_SIZE][GRID_SIZE];
+
+int min_row = 0, min_col = 0, max_row = 0, max_col = 0;
+
+
+void
+init_grid()
+{
+    for (int i = 0; i < GRID_SIZE; i++) {
+        for (int j = 0; j < GRID_SIZE; j++) {
+            grid[i][j] = EMPTY;
+        }
+    }
+}
+
+
+void
+mark_grid(int row, int col, gridcell t)
+{
+    grid[GRID_ZERO + row][GRID_ZERO + col] = t;
+}
+
+
+void
+next_position(int row, int col, direction dir, int *next_row, int *next_col) {
+    *next_row = row;
+    *next_col = col;
+
+    switch (dir) {
+    case UP:    (*next_row)--; break;
+    case RIGHT: (*next_col)++; break;
+    case DOWN:  (*next_row)++; break;
+    case LEFT:  (*next_col)--; break;
+    }
+}
+
+
+void
+travel_direction(int *row, int *col, direction dir, int distance)
+{
+    int next_row, next_col;
+
+    for (int i = 0; i < distance; i++) {
+        next_position(*row, *col, dir, &next_row, &next_col);
+        mark_grid(next_row, next_col, TRENCH);
+        *row = next_row;
+        *col = next_col;
+        if (*row < min_row) {
+            min_row = *row;
+        }
+        if (*row > max_row) {
+            max_row = *row;
+        }
+        if (*col < min_col) {
+            min_col = *col;
+        }
+        if (*col > max_col) {
+            max_col = *col;
+        }
+    }
+}
+
+
+void
+dump_grid()
+{
+    char buf[GRID_SIZE + 1];
+
+    for (int row = min_row; row <= max_row; row++) {
+        for (int col = min_col; col <= max_col; col++) {
+            switch (grid[GRID_ZERO + row][GRID_ZERO + col]) {
+            case EMPTY:
+                buf[col - min_col] = '.'; break;
+            case TRENCH:
+                buf[col - min_col] = '#'; break;
+            case FLOOD:
+                buf[col - min_col] = '+'; break;
+            }
+        }
+        buf[max_col - min_col + 1] = '\0';
+        printf("%s\n", buf);
+    }
+}
+
+
+void
+flood_fill(int row, int col)
+{
+    if (grid[GRID_ZERO + row][GRID_ZERO + col] != EMPTY) {
+        return;
+    }
+    mark_grid(row, col, FLOOD);
+    for (int d = 0; d < sizeof(direction); d++) {
+        int next_row, next_col;
+
+        next_position(row, col, d, &next_row, &next_col);
+        if (next_row < min_row || next_row > max_row || next_col < min_col || next_col > max_col) {
+            continue;
+        }
+        flood_fill(next_row, next_col);
+    }
+}
+
+
+int
+calculate_unflooded()
+{
+    int total = 0;
+
+    for (int row = min_row; row <= max_row; row++) {
+        for (int col = min_col; col <= max_col; col++) {
+            if (grid[GRID_ZERO + row][GRID_ZERO + col] != FLOOD) {
+                total++;
+            }
+        }
+    }
+    return total;
+}
+
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -89,6 +224,11 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+
+    int d_totals[4] = { 0, 0, 0, 0 };
+    int row = 0, col = 0;
+
+    init_grid();
 
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
@@ -107,10 +247,63 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char dir;
+        int distance;
+        char hexcode[7];
+        sscanf(buf, "%c %d (#%[0-9a-f])", &dir, &distance, hexcode);
+        if (opts.debug) {
+            printf("Received direction '%c', distance '%d', and hexcode '%s'\n",
+                   dir, distance, hexcode);
+        }
+        switch (dir) {
+        case 'U':
+            d_totals[UP] += distance;
+            travel_direction(&row, &col, UP, distance);
+            break;
+        case 'R':
+            d_totals[RIGHT] += distance;
+            travel_direction(&row, &col, RIGHT, distance);
+            break;
+        case 'D':
+            d_totals[DOWN] += distance;
+            travel_direction(&row, &col, DOWN, distance);
+            break;
+        case 'L':
+            d_totals[LEFT] += distance;
+            travel_direction(&row, &col, LEFT, distance);
+            break;
+        default:
+            printf("What direction is that? %c\n", dir);
+            exit(1);
+        }
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    if (opts.debug) {
+        printf("Digging in the four directions:\n");
+        for (int d = 0; d < sizeof(direction); d++) {
+            printf("  Direction %d: %d\n", d, d_totals[d]);
+        }
+        printf("Row range; [%d,%d]\n", min_row, max_row);
+        printf("Col range; [%d,%d]\n", min_col, max_col);
+        printf("\n");
+    }
+    min_row--;
+    min_col--;
+    max_row++;
+    max_col++;
+    if (opts.debug) {
+        printf("Before flood fill:\n");
+        dump_grid();
+    }
+    flood_fill(min_row, min_col);
+    if (opts.debug) {
+        printf("After flood fill:\n");
+        dump_grid();
+    }
+    int count = calculate_unflooded();
+    printf("Total unflooded area: %d\n", count);
 }
 
 

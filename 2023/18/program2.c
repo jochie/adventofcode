@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    18
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -80,6 +80,40 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+typedef enum direction {
+    UP, RIGHT, DOWN, LEFT
+} direction;
+
+
+void
+travel_direction(long row, long col, direction dir, long distance, long *next_row, long *next_col)
+{
+    *next_row = row;
+    *next_col = col;
+
+    switch (dir) {
+    case UP:
+        *next_row -= distance; break;
+    case RIGHT:
+        *next_col += distance; break;
+    case DOWN:
+        *next_row += distance; break;
+    case LEFT:
+        *next_col -= distance; break;
+    }
+}
+
+/*
+ * Used a modified version of this algorithm
+ *
+ * https://en.wikipedia.org/wiki/Shoelace_formula
+ *
+ * The catch is that formula calculates along the centers of the
+ * trenches, so we need to add to that the part of the trench that is
+ * not accounted for, which is a function of the length of the trench
+ * that was dug?
+ */
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -90,6 +124,10 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    long d_totals[4] = { 0, 0, 0, 0 };
+    long row = 0, col = 0;
+    long area = 0;
+    long traveled = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +145,72 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char dir;
+        long distance;
+        char hexcode[7];
+        sscanf(buf, "%c %ld (#%[0-9a-f])", &dir, &distance, hexcode);
+        switch (hexcode[5]) {
+        case '0': dir = 'R'; break;
+        case '1': dir = 'D'; break;
+        case '2': dir = 'L'; break;
+        case '3': dir = 'U'; break;
+        }
+        hexcode[5] = '\0';
+        sscanf(hexcode, "%lx", &distance);
+        if (opts.debug) {
+            printf("Received hexcode '%s' -> direction %c, distance %ld\n", hexcode, dir, distance);
+        }
+        long next_row, next_col;
+        switch (dir) {
+        case 'U':
+            d_totals[UP] += distance;
+            travel_direction(row, col, UP, distance, &next_row, &next_col);
+            break;
+        case 'R':
+            d_totals[RIGHT] += distance;
+            travel_direction(row, col, RIGHT, distance, &next_row, &next_col);
+            break;
+        case 'D':
+            d_totals[DOWN] += distance;
+            travel_direction(row, col, DOWN, distance, &next_row, &next_col);
+            break;
+        case 'L':
+            d_totals[LEFT] += distance;
+            travel_direction(row, col, LEFT, distance, &next_row, &next_col);
+            break;
+        default:
+            printf("What direction is that? %c\n", dir);
+            exit(1);
+        }
+        area = area + row * next_col;
+        area = area - col * next_row;
+        row = next_row;
+        col = next_col;
+        if (opts.debug) {
+            printf("Area so far: %ld\n", area);
+        }
+        traveled += distance;
+        if (opts.debug) {
+            printf("Traveled so far: %ld\n", traveled);
+        }
     }
+    /* Pro forma, we started at 0,0 which makes this a no-op */
+    area = area + row * 0;
+    area = area - col * 0;
+
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    if (opts.debug) {
+        printf("Digging in the four directions:\n");
+        for (int d = 0; d < sizeof(direction); d++) {
+            printf("  Direction %d: %ld\n", d, d_totals[d]);
+        }
+    }
+    area = area < 0 ? -area : area;
+    printf("Area calculated: %ld\n", area / 2);
+    printf("Total travel: %ld\n", traveled);
+    printf("My educated guess: %ld\n", area / 2 + traveled / 2 + 1);
 }
 
 
