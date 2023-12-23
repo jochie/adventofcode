@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    20
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,6 +79,215 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+# define LOW false
+# define HIGH true
+
+typedef enum type {
+    START,
+    FLIP,
+    CONJ
+} type;
+
+typedef struct module {
+    type t;
+    char name[20];
+    char targets[20][20];
+    int t_total;
+    struct inputs {
+        bool state;
+        int mod;
+    } inputs[20];
+    int i_total;
+    bool state;
+} module;
+
+module modules[100];
+int count = 0;
+
+/*
+ * Key sentence:
+ *
+ * "If a flip-flop module receives a high pulse, it is ignored and nothing happens."
+ */
+
+void
+dump_module(int i)
+{
+    switch (modules[i].t) {
+    case START:
+        printf("Starter module (%s):\n", modules[i].name);
+        break;
+    case FLIP:
+        printf("Flip-flop module (%s):\n", modules[i].name);
+        printf("  Current state: %s\n", modules[i].state ? "-high" : "-low");
+        break;
+    case CONJ:
+        printf("Conjunctor module (%s):\n", modules[i].name);
+        printf("  Current state: %s\n", modules[i].state ? "-high" : "-low");
+        break;
+    }
+    printf("  Targets (%d):\n    ", modules[i].t_total);
+    for (int j = 0; j < modules[i].t_total; j++) {
+        printf("%s ", modules[i].targets[j]);
+    }
+    printf("\n");
+    if (modules[i].i_total > 0) {
+        printf("  Inputs (%d):\n", modules[i].i_total);
+        for (int j = 0; j < modules[i].i_total; j++) {
+            printf("    %d (%s) -> %s\n",
+                   modules[i].inputs[j].mod,
+                   modules[modules[i].inputs[j].mod].name,
+                   modules[i].inputs[j].state ? "-high" : "-low");
+        }
+    }
+    printf("\n");
+}
+
+int high_count = 0, low_count = 0;
+int broadcaster = 0;
+
+struct queue {
+    char oname[20];
+    int origin;
+    int module;
+    bool value;
+} queue[100], queue_copy[100];
+
+int queue_size = 0;
+
+int
+find_module(char name[20])
+{
+    for (int i = 0; i < count; i++) {
+        if (!strcmp(modules[i].name, name)) {
+            return i;
+        }
+    }
+    /* Not found, like "output"? */
+    return -1;
+}
+
+void
+queue_pulse(char name[20], int m, bool v)
+{
+    int o = find_module(name);
+
+    if (opts.debug) {
+        printf("%s (%d) %s-> %s\n",
+               name, o, v ? "-high" : "-low", modules[m].name);
+    }
+    if (v) {
+        high_count++;
+    } else {
+        low_count++;
+    }
+    strcpy(queue[queue_size].oname, name);
+    queue[queue_size].origin = o;
+    queue[queue_size].module = m;
+    queue[queue_size].value = v;
+    queue_size++;
+}
+
+void
+find_module_inputs()
+{
+    for (int m = 0; m < count; m++) {
+        for (int t = 0; t < modules[m].t_total; t++) {
+            int i = find_module(modules[m].targets[t]);
+            if (i == -1) {
+                continue;
+            }
+            if (modules[i].t == CONJ) {
+                if (opts.debug) {
+                    printf("Connecting target %s of %s to input of %s\n",
+                           modules[m].targets[t], modules[m].name, modules[i].name);
+                }
+                modules[i].inputs[modules[i].i_total].mod = m;
+                modules[i].inputs[modules[i].i_total].state = LOW;
+                modules[i].i_total++;
+            }
+        }
+    }
+}
+
+void
+process_queue()
+{
+    if (opts.debug) {
+        printf("QUEUE size: %d\n", queue_size);
+    }
+    int copy_size = queue_size;
+    for (int i = 0; i < copy_size; i++) {
+        strcpy(queue_copy[i].oname, queue[i].oname);
+        queue_copy[i].origin = queue[i].origin;
+        queue_copy[i].module = queue[i].module;
+        queue_copy[i].value = queue[i].value;
+    }
+    queue_size = 0;
+    for (int i = 0; i < copy_size; i++) {
+        int ori = queue_copy[i].origin;
+        int mod = queue_copy[i].module;
+        bool val = queue_copy[i].value;
+
+        if (mod == -1) {
+            if (opts.debug) {
+                printf("Sent to a module without inputs or outputs.\n");
+            }
+            continue;
+        }
+        switch (modules[mod].t) {
+        case START:
+            for (int m = 0; m < modules[mod].t_total; m++) {
+                int target = find_module(modules[mod].targets[m]);
+                queue_pulse(modules[mod].name, target, val);
+            }
+            break;
+        case FLIP:
+            if (queue_copy[i].value == HIGH) {
+                if (opts.debug) {
+                    printf("Flip-flop module %s received a high pulse, nothing happens.\n",
+                           modules[mod].name);
+                }
+                break;
+            }
+            modules[mod].state = !modules[mod].state;
+            if (opts.debug) {
+                printf("Flip-flop module %s received a low pulse and flipped to %d\n",
+                       modules[mod].name, modules[mod].state);
+            }
+            for (int m = 0; m < modules[mod].t_total; m++) {
+                int target = find_module(modules[mod].targets[m]);
+                queue_pulse(modules[mod].name, target, modules[mod].state);
+            }
+            break;
+        case CONJ:
+            {
+                bool all_high = true;
+                for (int m = 0; m < modules[mod].i_total; m++) {
+                    if (modules[mod].inputs[m].mod == ori) {
+                        if (opts.debug) {
+                            printf("Updating memory of input %d (%s) for %d (%s) to %d.\n",
+                                   ori, modules[ori].name, mod, modules[mod].name, val);
+                        }
+                        modules[mod].inputs[m].state = val;
+                    }
+                    if (!modules[mod].inputs[m].state) {
+                        all_high = false;
+                    }
+                }
+                if (opts.debug) {
+                    printf("All-high check for %s: %d\n", modules[mod].name, all_high);
+                }
+                all_high = !all_high;
+                for (int m = 0; m < modules[mod].t_total; m++) {
+                    int target = find_module(modules[mod].targets[m]);
+                    queue_pulse(modules[mod].name, target, all_high);
+                }
+            }
+            break;
+        }
+    }
+}
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -107,10 +316,65 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char *info = buf;
+
+        if (buf[0] == '&') {
+            modules[count].t = CONJ;
+            info = buf + 1;
+            modules[count].state = false;
+        } else if (buf[0] == '%') {
+            modules[count].t = FLIP;
+            modules[count].state = false;
+            info = buf + 1;
+        } else {
+            modules[count].t = START;
+            broadcaster = count;
+            info = buf;
+        }
+        int len;
+        sscanf(info, "%s -> %n", modules[count].name, &len);
+        info = info + len;
+
+        int total = 0;
+        while (true) {
+            sscanf(info, "%[a-z]%n", modules[count].targets[total], &len);
+            total++;
+            if (info[len] == ',') {
+                info = info + len + 2;
+            } else {
+                break;
+            }
+        }
+        modules[count].t_total = total;
+        modules[count].i_total = 0; /* post process for this */
+        count++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    find_module_inputs();
+    if (opts.debug) {
+        for (int m = 0; m < count; m++) {
+            dump_module(m);
+        }
+        printf("Parsed %d modules.\n", count);
+    }
+    for (int pushes = 0; pushes < 1000; pushes++) {
+        queue_pulse("button", broadcaster, LOW);
+
+        int round = 0;
+        while (queue_size > 0) {
+            round++;
+            if (opts.debug) {
+                printf("\nROUND %d\n\n", round);
+            }
+            process_queue();
+        }
+    }
+    if (opts.debug) {
+        printf("\nDONE\n\n");
+    }
+    printf("%d [High pulses sent]) * %d [Low pulses sent] = %d\n", high_count, low_count, high_count * low_count);
 }
 
 
