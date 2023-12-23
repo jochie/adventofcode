@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    20
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,6 +79,267 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+# define LOW false
+# define HIGH true
+
+typedef enum type {
+    START,
+    FLIP,
+    CONJ
+} type;
+
+typedef struct module {
+    type t;
+    char name[20];
+    char targets[20][20];
+    int t_total;
+    struct inputs {
+        bool state;
+        int mod;
+    } inputs[20];
+    int i_total;
+    bool state;
+} module;
+
+module modules[100];
+int count = 0;
+
+/*
+ * Key sentence:
+ *
+ * "If a flip-flop module receives a high pulse, it is ignored and nothing happens."
+ */
+
+void
+dump_module(int i)
+{
+    switch (modules[i].t) {
+    case START:
+        printf("Starter module (%s):\n", modules[i].name);
+        break;
+    case FLIP:
+        printf("Flip-flop module (%s):\n", modules[i].name);
+        printf("  Current state: %s\n", modules[i].state ? "-high" : "-low");
+        break;
+    case CONJ:
+        printf("Conjunctor module (%s):\n", modules[i].name);
+        printf("  Current state: %s\n", modules[i].state ? "-high" : "-low");
+        break;
+    }
+    printf("  Targets (%d):\n    ", modules[i].t_total);
+    for (int j = 0; j < modules[i].t_total; j++) {
+        printf("%s ", modules[i].targets[j]);
+    }
+    printf("\n");
+    if (modules[i].i_total > 0) {
+        printf("  Inputs (%d):\n", modules[i].i_total);
+        for (int j = 0; j < modules[i].i_total; j++) {
+            printf("    %d (%s) -> %s\n",
+                   modules[i].inputs[j].mod,
+                   modules[modules[i].inputs[j].mod].name,
+                   modules[i].inputs[j].state ? "-high" : "-low");
+        }
+    }
+    printf("\n");
+}
+
+int high_count = 0, low_count = 0;
+int broadcaster = 0;
+
+struct queue {
+    char oname[20];
+    int origin;
+    int module;
+    bool value;
+} queue[100], queue_copy[100];
+
+int queue_size = 0;
+
+long pushes = 0;
+long steps = 0;
+
+int
+find_module(char name[20])
+{
+    for (int i = 0; i < count; i++) {
+        if (!strcmp(modules[i].name, name)) {
+            return i;
+        }
+    }
+    /* Not found, like "output"? */
+    return -1;
+}
+
+/* For tracking the inputs of 'dd' that sent it a high pulse. */
+int dd_high_pulses[100];
+int dd_inputs_seen;
+bool dd_tracking_done;
+
+void
+init_dd_tracking()
+{
+    dd_tracking_done = false;
+    dd_inputs_seen = 0;
+    for (int i = 0; i < 100; i++) {
+        dd_high_pulses[i] = 1;
+    }
+}
+
+bool
+track_dd_high_pulse(char name[20])
+{
+    if (opts.debug) {
+        printf("BUTTON PUSH %ld - STEP %ld - INPUT %s sends HIGH pulse to dd\n",
+               pushes, steps, name);
+    }
+    int m = find_module(name);
+    if (dd_high_pulses[m] > 1) {
+        printf("  Ignoring, already seen.\n");
+        return false;
+    }
+    dd_high_pulses[m] = pushes;
+    dd_inputs_seen++;
+
+    int dd_m = find_module("dd");
+    if (opts.debug) {
+        printf("Seen high pulses for %d/%d inputs.\n",
+               dd_inputs_seen, modules[dd_m].i_total);
+    }
+    if (dd_inputs_seen < modules[dd_m].i_total) {
+        return false;
+    }
+    dd_tracking_done = true; /* Huzzah! */
+    return true;
+}
+
+void
+queue_pulse(char name[20], int m, char m_name[20], bool v)
+{
+    int o = find_module(name);
+
+    /* Hardcoded a check for the module that sits right in front of "rx" */
+    if (!strcmp(m_name, "dd") && v == HIGH) {
+        if (track_dd_high_pulse(name)) {
+            /* We're done! */
+            return;
+        }
+    }
+    if (opts.debug) {
+        printf("%s (%d) %s-> %d (%s)\n",
+               name, o, v ? "-high" : "-low", m, m_name);
+    }
+    if (v) {
+        high_count++;
+    } else {
+        low_count++;
+    }
+    strcpy(queue[queue_size].oname, name);
+    queue[queue_size].origin = o;
+    queue[queue_size].module = m;
+    queue[queue_size].value = v;
+    queue_size++;
+}
+
+void
+find_module_inputs()
+{
+    for (int m = 0; m < count; m++) {
+        for (int t = 0; t < modules[m].t_total; t++) {
+            int i = find_module(modules[m].targets[t]);
+            if (i == -1) {
+                continue;
+            }
+            if (modules[i].t == CONJ) {
+                if (opts.debug) {
+                    printf("Connecting target %s of %s to input of %s\n",
+                           modules[m].targets[t], modules[m].name, modules[i].name);
+                }
+                modules[i].inputs[modules[i].i_total].mod = m;
+                modules[i].inputs[modules[i].i_total].state = LOW;
+                modules[i].i_total++;
+            }
+        }
+    }
+}
+
+void
+process_queue()
+{
+    if (opts.debug) {
+        printf("QUEUE size: %d\n", queue_size);
+    }
+    int copy_size = queue_size;
+    for (int i = 0; i < copy_size; i++) {
+        strcpy(queue_copy[i].oname, queue[i].oname);
+        queue_copy[i].origin = queue[i].origin;
+        queue_copy[i].module = queue[i].module;
+        queue_copy[i].value = queue[i].value;
+    }
+    queue_size = 0;
+    for (int i = 0; i < copy_size; i++) {
+        int ori = queue_copy[i].origin;
+        int mod = queue_copy[i].module;
+        bool val = queue_copy[i].value;
+
+        if (mod == -1) {
+            if (opts.debug) {
+                printf("Sent to a module without inputs or outputs.\n");
+            }
+            continue;
+        }
+        switch (modules[mod].t) {
+        case START:
+            for (int m = 0; m < modules[mod].t_total; m++) {
+                int target = find_module(modules[mod].targets[m]);
+                queue_pulse(modules[mod].name, target, modules[mod].targets[m], val);
+            }
+            break;
+        case FLIP:
+            if (queue_copy[i].value == HIGH) {
+                if (opts.debug) {
+                    printf("Flip-flop module %s received a high pulse, nothing happens.\n",
+                           modules[mod].name);
+                }
+                break;
+            }
+            modules[mod].state = !modules[mod].state;
+            if (opts.debug) {
+                printf("Flip-flop module %s received a low pulse and flipped to %d\n",
+                       modules[mod].name, modules[mod].state);
+            }
+            for (int m = 0; m < modules[mod].t_total; m++) {
+                int target = find_module(modules[mod].targets[m]);
+                queue_pulse(modules[mod].name, target, modules[mod].targets[m], modules[mod].state);
+            }
+            break;
+        case CONJ:
+            {
+                bool all_high = true;
+                for (int m = 0; m < modules[mod].i_total; m++) {
+                    if (modules[mod].inputs[m].mod == ori) {
+                        if (opts.debug) {
+                            printf("Updating memory of input %d (%s) for %d (%s) to %d.\n",
+                                   ori, modules[ori].name, mod, modules[mod].name, val);
+                        }
+                        modules[mod].inputs[m].state = val;
+                    }
+                    if (!modules[mod].inputs[m].state) {
+                        all_high = false;
+                    }
+                }
+                if (opts.debug) {
+                    printf("All-high check for %s: %d\n", modules[mod].name, all_high);
+                }
+                all_high = !all_high;
+                for (int m = 0; m < modules[mod].t_total; m++) {
+                    int target = find_module(modules[mod].targets[m]);
+                    queue_pulse(modules[mod].name, target, modules[mod].targets[m], all_high);
+                }
+            }
+            break;
+        }
+    }
+}
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -107,10 +368,82 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        char *info = buf;
+
+        if (buf[0] == '&') {
+            modules[count].t = CONJ;
+            info = buf + 1;
+            modules[count].state = false;
+        } else if (buf[0] == '%') {
+            modules[count].t = FLIP;
+            modules[count].state = false;
+            info = buf + 1;
+        } else {
+            modules[count].t = START;
+            broadcaster = count;
+            info = buf;
+        }
+        int len;
+        sscanf(info, "%s -> %n", modules[count].name, &len);
+        info = info + len;
+
+        int total = 0;
+        while (true) {
+            sscanf(info, "%[a-z]%n", modules[count].targets[total], &len);
+            total++;
+            if (info[len] == ',') {
+                info = info + len + 2;
+            } else {
+                break;
+            }
+        }
+        modules[count].t_total = total;
+        modules[count].i_total = 0; /* post process for this */
+        count++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    find_module_inputs();
+    if (opts.debug) {
+        for (int m = 0; m < count; m++) {
+            dump_module(m);
+        }
+        printf("Parsed %d modules.\n", count);
+    }
+    pushes = 0;
+    init_dd_tracking();
+    while (true) {
+        queue_pulse("button", broadcaster, "broadcaster", LOW);
+        pushes++;
+        steps = 0;
+        while (queue_size > 0) {
+            steps++;
+            if (opts.debug) {
+                printf("  STEP %ld\n\n", steps);
+            }
+            process_queue();
+            if (dd_tracking_done) {
+                break;
+            }
+        }
+        if (opts.debug) {
+            printf("Finished after %ld steps.\n", steps);
+        }
+        if (dd_tracking_done) {
+            break;
+        }
+    }
+    long multiplier = 1;
+    for (int i = 0; i < 100; i++) {
+        if (dd_high_pulses[i] > 1) {
+            printf("Input %d (%s) of module 'dd': %d\n",
+                   i, modules[i].name, dd_high_pulses[i]);
+            multiplier *= dd_high_pulses[i];
+        }
+    }
+    printf("Multiplied values of the input modules of 'dd': %ld\n",
+           multiplier);
 }
 
 
