@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2023
+# define DAY    23
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,7 +79,109 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+/*
+ * paths  = .
+ * forest = #
+ * slopes = ^, >, v, <
+ */
+char map[200][200];
+int max_row, max_col;
 
+bool visited[200][200];
+
+void
+visited_init()
+{
+    for (int row = 0; row < max_row; row++) {
+        for (int col = 0; col < max_col; col++) {
+            visited[row][col] = false;
+        }
+    }
+}
+
+/* Dealing with directions */
+typedef enum direction {
+    UP = 0, RIGHT, DOWN, LEFT
+} direction;
+
+char slopes[4] = "^>v<";
+direction slopes_d[4] = { UP, RIGHT, DOWN, LEFT };
+
+void
+next_position(int row, int col, direction dir, int *next_row, int *next_col) {
+    *next_row = row;
+    *next_col = col;
+
+    switch (dir) {
+    case UP:    (*next_row)--; break;
+    case RIGHT: (*next_col)++; break;
+    case DOWN:  (*next_row)++; break;
+    case LEFT:  (*next_col)--; break;
+    }
+}
+
+int
+searching_rec(int row, int col)
+{
+    if (row == max_row - 1) {
+        /* Success */
+        return 0;
+    }
+    char *slope = strchr(slopes, map[row][col]);
+    if (NULL != slope) {
+        int d = slopes_d[slope - slopes];
+        int next_row, next_col;
+
+        next_position(row, col, d, &next_row, &next_col);
+        if (visited[next_row][next_col]) {
+            return 0;
+        }
+        visited[next_row][next_col] = true;
+        int steps = searching_rec(next_row, next_col);
+        visited[next_row][next_col] = false;
+        if (steps == -1) {
+            /* An unsuccessful journey */
+            return -1;
+        }
+        return 1 + steps;
+    }
+    int max_steps = -1;
+    for (int d = 0; d < sizeof(direction); d++) {
+        int next_row, next_col;
+
+        next_position(row, col, d, &next_row, &next_col);
+        if (next_row < 0) {
+            continue;
+        }
+        if (map[next_row][next_col] == '#') {
+            continue;
+        }
+        if (visited[next_row][next_col]) {
+            continue;
+        }
+        visited[next_row][next_col] = true;
+        int steps = searching_rec(next_row, next_col);
+        visited[next_row][next_col] = false;
+        if (steps > max_steps) {
+            /* Works for -1 for either value as well */
+            max_steps = steps;
+        }
+    }
+    if (max_steps == -1) {
+        return -1;
+    }
+    return 1 + max_steps;
+}
+
+int
+searching()
+{
+    visited_init();
+
+    visited[0][1] = true;
+    int steps = searching_rec(0, 1);
+    return steps;
+}
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -90,6 +192,8 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    max_row = 0;
+    max_col = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +211,17 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        if (!max_col) {
+            max_col = strlen(buf);
+        }
+        strcpy(map[max_row], buf);
+        max_row++;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    int max_steps = searching();
+    printf("Max steps to get there: %d\n", max_steps);
 }
 
 
