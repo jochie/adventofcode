@@ -16,14 +16,14 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY    01
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
 
-# define MAX_LEN 1024
+# define MAX_LEN 8192
 
 struct {
     bool debug   : 1;
@@ -107,6 +107,20 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+
+        int floor = 0;
+
+        for (int i = 0; i < strlen(buf); i++) {
+            switch (buf[i]) {
+            case '(':
+                floor++;
+                break;
+            case ')':
+                floor--;
+                break;
+            }
+        }
+        printf("Final floor: %d\n", floor);
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
