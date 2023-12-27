@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     2
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,6 +79,21 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+int
+compare_numbers(const void *a, const void *b)
+{
+    int i1, i2;
+
+    i1 = *((int *)a);
+    i2 = *((int *)b);
+    if (i1 == i2) {
+        return 0;
+    }
+    if (i1 < i2) {
+        return -1;
+    }
+    return 1;
+}
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -89,6 +104,8 @@ void
 process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
+
+    int sum_ribbon = 0;
 
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
@@ -107,10 +124,23 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        int d[3];
+        sscanf(buf, "%dx%dx%d", d, d + 1, d + 2);
+        if (opts.debug) {
+            printf("%d x %d x %d\n", d[0], d[1], d[2]);
+        }
+        int ribbon_bow = d[0] * d[1] * d[2];
+        qsort(d, 3, sizeof(int), compare_numbers);
+        int ribbon = ribbon_bow + 2 * d[0] + 2 * d[1];
+        if (opts.debug) {
+            printf("Ribbon needed: %d\n", ribbon);
+        }
+        sum_ribbon += ribbon;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Total ribbon needed: %d\n", sum_ribbon);
 }
 
 

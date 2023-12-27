@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     2
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -90,6 +90,8 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int sum_wrapping = 0;
+
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +109,29 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        int l, w, h;
+        sscanf(buf, "%dx%dx%d", &l, &w, &h);
+        if (opts.debug) {
+            printf("%d x %d x %d\n", l, w, h);
+        }
+        int wrapping = 2 * l * w + 2 * w * h + 2 * h * l;
+        int slack = l * w;
+        if (w * h < slack) {
+            slack = w * h;
+        }
+        if (h * l < slack) {
+            slack = h * l;
+        }
+        wrapping += slack;
+        if (opts.debug) {
+            printf("Wrapping paper needed: %d\n", wrapping);
+        }
+        sum_wrapping += wrapping;
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Total wrapping papper needed: %d\n", sum_wrapping);
 }
 
 
