@@ -15,10 +15,11 @@
 # include <sys/errno.h>  /* errno                */
 
 # include <openssl/sha.h>
+# include <openssl/md5.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     4
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -106,6 +107,26 @@ process_file(FILE *fd)
             }
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
+        }
+        int counter = 0;
+        while (true) {
+            char str[MAX_LEN];
+            unsigned char digest[MD5_DIGEST_LENGTH];
+            char hexdigest[MD5_DIGEST_LENGTH * 2 + 1];
+
+            sprintf(str, "%s%d", buf, counter);
+            MD5((unsigned char *)str, strlen(str), digest);
+            for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+                sprintf(&hexdigest[i * 2], "%02x", (unsigned int)digest[i]);
+            }
+            if (opts.debug) {
+                printf("%s -> %s\n", str, hexdigest);
+            }
+            if (!strncmp("000000", hexdigest, 6)) {
+                printf("Found it? %d\n", counter);
+                break;
+            }
+            counter++;
         }
     }
     if (opts.debug) {
