@@ -16,14 +16,14 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     3
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
 
-# define MAX_LEN 1024
+# define MAX_LEN 10240
 
 struct {
     bool debug   : 1;
@@ -79,6 +79,7 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+# define SEEN_OFFSET 100
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -90,6 +91,12 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    bool seen[200][200];
+    for (int row = 0; row < 200; row++) {
+        for (int col = 0; col < 200; col++) {
+            seen[row][col] = false;
+        }
+    }
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,6 +114,45 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        int row = 0, col = 0;
+        int max_row = 0, min_row = 0, max_col = 0, min_col = 0;
+        int t_seen = 1;
+        seen[row + SEEN_OFFSET][col + SEEN_OFFSET] = true;
+        for (int i = 0; i < strlen(buf); i++) {
+            switch (buf[i]) {
+            case '^':
+                row--;
+                if (row < min_row) {
+                    min_row = row;
+                }
+                break;
+            case '>':
+                col++;
+                if (col > max_col) {
+                    max_col = col;
+                }
+                break;
+            case 'v':
+                row++;
+                if (row > max_row) {
+                    max_row = row;
+                }
+                break;
+            case '<':
+                col--;
+                if (col < min_col) {
+                    min_col = col;
+                }
+                break;
+            }
+            if (!seen[row + SEEN_OFFSET][col + SEEN_OFFSET]) {
+                t_seen++;
+                seen[row + SEEN_OFFSET][col + SEEN_OFFSET] = true;
+            }
+        }
+        printf("Row range: %d - %d\n", min_row, max_row);
+        printf("Col range: %d - %d\n", min_col, max_col);
+        printf("Houses visited, once or more: %d\n", t_seen);
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
