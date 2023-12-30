@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     6
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -80,6 +80,53 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+bool grid[1000][1000];
+
+void
+grid_init()
+{
+    for (int i = 0; i < 1000; i++) {
+        for (int j = 0; j < 1000; j++) {
+            grid[i][j] = false;
+        }
+    }
+}
+
+void
+set_value(int row_min, int col_min, int row_max, int col_max, bool val)
+{
+    for (int row = row_min; row <= row_max; row++) {
+        for (int col = col_min; col <= col_max; col++) {
+            grid[row][col] = val;
+        }
+    }
+}
+
+void
+toggle_value(int row_min, int col_min, int row_max, int col_max)
+{
+    for (int row = row_min; row <= row_max; row++) {
+        for (int col = col_min; col <= col_max; col++) {
+            grid[row][col] = !grid[row][col];
+        }
+    }
+}
+
+int
+count_grid()
+{
+    int total = 0;
+
+    for (int row = 0; row < 1000; row++) {
+        for (int col = 0; col < 1000; col++) {
+            if (grid[row][col]) {
+                total++;
+            }
+        }
+    }
+    return total;
+}
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -90,6 +137,7 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    grid_init();
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +155,23 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        int row_min, row_max, col_min, col_max;
+
+        if (sscanf(buf, "toggle %d,%d through %d,%d",
+                   &row_min, &col_min, &row_max, &col_max)) {
+            toggle_value(row_min, col_min, row_max, col_max);
+        } else if (sscanf(buf, "turn on %d,%d through %d,%d",
+                          &row_min, &col_min, &row_max, &col_max)) {
+            set_value(row_min, col_min, row_max, col_max, true);
+        } else if (sscanf(buf, "turn off %d,%d through %d,%d",
+                          &row_min, &col_min, &row_max, &col_max)) {
+            set_value(row_min, col_min, row_max, col_max, false);
+        }
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Lights lit at this time: %d\n", count_grid());
 }
 
 
