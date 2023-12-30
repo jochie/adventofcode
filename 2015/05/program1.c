@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     5
+# define PART    1
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -80,6 +80,42 @@ main(int argc, char *argv[], char *env[])
 }
 
 
+
+
+bool
+is_nice(char str[MAX_LEN + 1])
+{
+    int vowels = 0;
+    bool doubles = false;
+    for (int i = 0; i < strlen(str); i++) {
+        if (!doubles && i < strlen(str) - 1 && str[i] == str[i + 1]) {
+            doubles = true;
+        }
+        switch (str[i]) {
+        case 'a':
+        case 'e':
+        case 'i':
+        case 'o':
+        case 'u':
+            vowels++;
+            break;
+        default:
+            break;
+        }
+        switch (str[i]) {
+        case 'a':
+        case 'c':
+        case 'p':
+        case 'x':
+            if (i < strlen(str) - 1 && str[i + 1] == str[i] + 1) {
+                return false;
+            }
+            break;
+        }
+    }
+    return vowels >= 3 && doubles;
+}
+
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
  * until we reach the end. Strip newlines, and then do what needs to
@@ -90,6 +126,7 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int t_nice = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +144,17 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        if (is_nice(buf)) {
+            if (opts.debug) {
+                printf("NICE: %s\n", buf);
+            }
+            t_nice++;
+        }
     }
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Total nice strings: %d\n", t_nice);
 }
 
 
