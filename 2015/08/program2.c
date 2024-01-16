@@ -16,9 +16,9 @@
 
 # include <openssl/sha.h>
 
-# define YEAR YYYY
-# define DAY    DD
-# define PART    Z
+# define YEAR 2015
+# define DAY     8
+# define PART    2
 
 # define STR(x) _STR(x)
 # define _STR(x) #x
@@ -79,6 +79,23 @@ main(int argc, char *argv[], char *env[])
     }
 }
 
+int
+mem_needed(char *buf)
+{
+    int len = strlen(buf);
+    int orig_len = len;
+    for (int i = 0; i < orig_len; i++) {
+        switch (buf[i]) {
+        case '"':
+        case '\\':
+            len++;
+            break;
+        default:
+            break;
+        }
+    }
+    return len + 2;
+}
 
 /*
  * Read from the filedescriptor (whether it's stdin or an actual file)
@@ -90,6 +107,8 @@ process_file(FILE *fd)
 {
     char buf[MAX_LEN + 1];
 
+    int len_sum = 0;
+    int mem_sum = 0;
     while (NULL != fgets(buf, MAX_LEN, fd)) {
         /* Strip the newline, if present */
         if (buf[strlen(buf) - 1] == '\n') {
@@ -107,10 +126,19 @@ process_file(FILE *fd)
 
             printf("DEBUG: Line received: [%s] '%s'\n", hexdigest, buf);
         }
+        int len = strlen(buf);
+        int mem = mem_needed(buf);
+        len_sum += len;
+        mem_sum += mem;
+        if (opts.debug) {
+            printf("Memory needed for '%s': %d (length: %d)\n", buf, mem, len);
+        }
     }
+
     if (opts.debug) {
         printf("DEBUG: End of file\n");
     }
+    printf("Difference between %d and %d = %d\n", len_sum, mem_sum, mem_sum - len_sum);
 }
 
 
