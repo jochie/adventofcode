@@ -1,10 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Python code template for AoC programs
 """
 
 import argparse
+import re
 import sys
 
 def parse_options():
@@ -37,7 +38,7 @@ def main():
     for line in sys.stdin:
         line = line.rstrip()
         if opts.debug:
-            print("DEBUG: Line received: '{}'".format(line))
+            print(f"DEBUG: Line received: '{line}'")
     # Done
     return 0
 
