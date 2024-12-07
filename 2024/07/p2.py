@@ -30,21 +30,30 @@ def parse_options():
     return parser.parse_args()
 
 
+# Turning this into a generator shaved about 8-10 seconds off the time
+# for the actual input.
 def generate_expressions(opts, values):
     if len(values) == 1:
-        return [ values ]
-    results = []
+        yield values
+        return
     for expr in generate_expressions(opts, values[1:]):
-        results.append([ values[0], '+' ] + expr)
-        results.append([ values[0], '*' ] + expr)
-        results.append([ values[0], '||' ] + expr)
-    return results
+        yield [ values[0], '+'  ] + expr
+        yield [ values[0], '*'  ] + expr
+        yield [ values[0], '||' ] + expr
 
 
-def evaluate_expression(opts, expr):
+def evaluate_expression(opts, expr, target):
     result = expr[0]
     expr = expr[1:]
     while len(expr) > 0:
+        if result > target:
+            # Micro-optimization:
+            #
+            # We've already overshot our target, throwing more
+            # operators and values won't get us any closer.
+            #
+            # This only shaves a second or two for the actual input.
+            return -1
         if expr[0] == '+':
             result += expr[1]
         elif expr[0] == '*':
@@ -58,7 +67,7 @@ def evaluate_expression(opts, expr):
 
 def find_operators(opts, result, values):
     for expr in generate_expressions(opts, values):
-        expr_eval = evaluate_expression(opts, expr)
+        expr_eval = evaluate_expression(opts, expr, result)
         if expr_eval == result:
             return True
     return False
