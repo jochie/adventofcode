@@ -39,46 +39,64 @@ def parse_options():
     return parser.parse_args()
 
 
+# Basic vector/position class
+class Vector:
+    def __init__(self, r, c):
+        self.row = r
+        self.col = c
+
+    def __add__(self, o):
+        return Vector(self.row + o.row, self.col + o.col)
+
+    def __sub__(self, o):
+        return Vector(self.row - o.row, self.col - o.col)
+
+    def __repr__(self):
+        return f"({self.row},{self.col})"
+
+    def __eq__(self, o):
+        return self.row == o.row and self.col == o.col
+
+
 DIRS = [
-    [ -1,  0 ],
-    [  0,  1 ],
-    [  1,  0 ],
-    [  0, -1 ]
+    Vector(-1,  0),
+    Vector( 0,  1),
+    Vector( 1,  0),
+    Vector( 0, -1)
 ]
 
 
-def on_grid(max_row, max_col, row, col):
-    return row >= 0 and col >= 0 and row < max_row and col < max_col
+def on_grid(max_row, max_col, pos):
+    return pos.row >= 0 and pos.col >= 0 and pos.row < max_row and pos.col < max_col
 
 
-def reachable_nines(opts, grid, max_row, max_col, row, col):
+def reachable_nines(opts, grid, max_row, max_col, pos):
     seen = {
-        f"{row},{col}": True
+        str(pos): True
     }
-    search = [[ row, col, 0 ]]
+    search = [[ pos, 0 ]]
     found = {}
     while True:
         if opts.debug:
             print(search)
         new_search = []
-        for row, col, val in search:
-            for rel_row, rel_col in DIRS:
-                new_row = row + rel_row
-                new_col = col + rel_col
-                if not on_grid(max_row, max_col, new_row, new_col):
+        for pos, val in search:
+            for rel_pos in DIRS:
+                new_pos = pos + rel_pos
+                if not on_grid(max_row, max_col, new_pos):
                     continue
-                if f"{new_row},{new_col}" in seen:
+                if str(new_pos) in seen:
                     continue
-                if grid[new_row][new_col] == '.':
+                if grid[new_pos.row][new_pos.col] == '.':
                     continue
-                new_val = int(grid[new_row][new_col])
+                new_val = int(grid[new_pos.row][new_pos.col])
                 if new_val != val + 1:
                     continue
                 if new_val == 9:
-                    found[f"{new_row},{new_col}"] = True
+                    found[str(new_pos)] = True
                 else:
-                    new_search.append([ new_row, new_col, new_val ])
-                seen[f"{new_row},{new_col}"] = True
+                    new_search.append([ new_pos, new_val ])
+                seen[str(new_pos)] = True
         if not len(new_search):
             break
         search = new_search
@@ -93,37 +111,36 @@ def run_part1(opts, grid, max_row, max_col):
     for row in range(max_row):
         for col in range(max_col):
             if grid[row][col] == '0':
-                total += reachable_nines(opts, grid, max_row, max_col, row, col)
+                total += reachable_nines(opts, grid, max_row, max_col, Vector(row, col))
     return total
 
 
-def distinct_trails(opts, grid, max_row, max_col, row, col):
-    search = [[ row, col, 0, { f"{row},{col}": True } ]]
+def distinct_trails(opts, grid, max_row, max_col, pos):
+    search = [[ pos, 0, { str(pos): True } ]]
     found = 0
     while True:
         if opts.debug:
             print(search)
         new_search = []
-        for row, col, val, seen in search:
-            for rel_row, rel_col in DIRS:
-                new_row = row + rel_row
-                new_col = col + rel_col
-                if not on_grid(max_row, max_col, new_row, new_col):
+        for pos, val, seen in search:
+            for rel_pos in DIRS:
+                new_pos = pos + rel_pos
+                if not on_grid(max_row, max_col, new_pos):
                     continue
-                if f"{new_row},{new_col}" in seen:
+                if str(new_pos) in seen:
                     continue
-                if grid[new_row][new_col] == '.':
+                if grid[new_pos.row][new_pos.col] == '.':
                     continue
-                new_val = int(grid[new_row][new_col])
+                new_val = int(grid[new_pos.row][new_pos.col])
                 if new_val != val + 1:
                     continue
                 if new_val == 9:
                     found += 1
                 else:
                     new_seen = copy.deepcopy(seen)
-                    new_seen[f"{new_row},{new_col}"] = True
+                    new_seen[str(new_pos)] = True
 
-                    new_search.append([ new_row, new_col, new_val, new_seen ])
+                    new_search.append([ new_pos, new_val, new_seen ])
         if not len(new_search):
             break
         search = new_search
@@ -138,7 +155,7 @@ def run_part2(opts, grid, max_row, max_col):
     for row in range(max_row):
         for col in range(max_col):
             if grid[row][col] == '0':
-                total += distinct_trails(opts, grid, max_row, max_col, row, col)
+                total += distinct_trails(opts, grid, max_row, max_col, Vector(row, col))
     return total
 
 
