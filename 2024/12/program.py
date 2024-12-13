@@ -37,48 +37,67 @@ def parse_options():
     return parser.parse_args()
 
 
+# Basic vector/position class
+class Vector:
+    def __init__(self, r, c):
+        self.row = r
+        self.col = c
+
+    def __add__(self, o):
+        return Vector(self.row + o.row, self.col + o.col)
+
+    def __sub__(self, o):
+        return Vector(self.row - o.row, self.col - o.col)
+
+    def __repr__(self):
+        return f"({self.row},{self.col})"
+
+    def __eq__(self, o):
+        return self.row == o.row and self.col == o.col
+
+
 DIRS = [
-    [ -1, 0  ],
-    [  0, 1  ],
-    [  1, 0  ],
-    [  0, -1 ]
+    Vector(-1,  0),
+    Vector( 0,  1),
+    Vector( 1,  0),
+    Vector( 0, -1)
 ]
 
-def on_grid(grid, max_row, max_col, row, col):
-    return row >= 0 and row < max_row and col >= 0 and col < max_col
 
-def map_region(opts, grid, max_row, max_col, row, col, letter):
-    search = [ [row, col] ]
-    found = { f"{row},{col}": [row, col] }
+def on_grid(grid, max_row, max_col, pos):
+    return pos.row >= 0 and pos.row < max_row and pos.col >= 0 and pos.col < max_col
+
+
+def map_region(opts, grid, max_row, max_col, pos, letter):
+    search = [ pos ]
+    found = { str(pos): [pos.row, pos.col] }
     area = 1
     perimeter = 4
     while True:
         new_search = []
-        for row, col in search:
-            for dir in DIRS:
-                new_row = row + dir[0]
-                new_col = col + dir[1]
+        for pos in search:
+            for dir1 in DIRS:
+                new_pos = pos + dir1
 
-                if f"{new_row},{new_col}" in found:
+                if str(new_pos) in found:
                     continue
 
-                if (on_grid(grid, max_row, max_col, new_row, new_col) and
-                    grid[new_row][new_col] == letter):
-                    found[f"{new_row},{new_col}"] = [new_row, new_col]
+                if (on_grid(grid, max_row, max_col, new_pos) and
+                    grid[new_pos.row][new_pos.col] == letter):
+                    found[str(new_pos)] = [new_pos.row, new_pos.col]
                     area += 1
                     perimeter += 4
                     for dir2 in DIRS:
-                        new2_row = new_row + dir2[0]
-                        new2_col = new_col + dir2[1]
-                        if (on_grid(grid, max_row, max_col, new2_row, new2_col) and
-                            grid[new2_row][new2_col] == letter and
-                            f"{new2_row},{new2_col}" in found):
+                        new2_pos = new_pos + dir2
+                        if (on_grid(grid, max_row, max_col, new2_pos) and
+                            grid[new2_pos.row][new2_pos.col] == letter and
+                            str(new2_pos) in found):
                             if opts.debug:
-                                print(letter, f"{new2_row},{new2_col} touches")
+                                print(letter, f"{new2_pos} touches")
                             perimeter -= 2
                     if opts.debug:
-                        print(letter, f"{new_row},{new_col} added", area, perimeter)
-                    new_search.append([ new_row, new_col ])
+                        print(letter, f"{new_pos} added", area, perimeter)
+                    new_search.append(new_pos)
         if len(new_search) == 0:
             break
         search = new_search
@@ -90,10 +109,11 @@ def find_regions(opts, grid, max_row, max_col):
     seen = {}
     for row in range(max_row):
         for col in range(max_col):
-            if f"{row},{col}" in seen:
+            pos = Vector(row, col)
+            if str(pos) in seen:
                 continue
             letter = grid[row][col]
-            region, area, perimeter = map_region(opts, grid, max_row, max_col, row, col, letter)
+            region, area, perimeter = map_region(opts, grid, max_row, max_col, pos, letter)
             for key in region.keys():
                 seen[key] = True
             regions.append([ letter, list(region.values()), area, perimeter ])
@@ -135,7 +155,7 @@ def run_part2(opts, grid, max_row, max_col):
             for row, col in positions:
                 new_row = row + row_dir
                 new_col = col
-                if (on_grid(opts, max_row, max_col, new_row, new_col) and
+                if (on_grid(opts, max_row, max_col, Vector(new_row, new_col)) and
                     grid[new_row][new_col] == letter):
                     # Bordering another of the same letter, ignore
                     continue
@@ -170,7 +190,7 @@ def run_part2(opts, grid, max_row, max_col):
             for row, col in positions:
                 new_row = row
                 new_col = col + col_dir
-                if (on_grid(opts, max_row, max_col, new_row, new_col) and
+                if (on_grid(opts, max_row, max_col, Vector(new_row, new_col)) and
                     grid[new_row][new_col] == letter):
                     # Bordering another of the same letter, ignore
                     continue
