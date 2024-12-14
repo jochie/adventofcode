@@ -91,7 +91,6 @@ def mult_quadrants(grid_size, pos_list):
 
 
 def run_part1(opts, grid_size, robots):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(grid_size)
@@ -109,16 +108,15 @@ def run_part1(opts, grid_size, robots):
         y = robot[1]
         v_x = robot[2]
         v_y = robot[3]
+
+        # Jump to where we expect to be in opts.seconds seconds:
         x_new = x + v_x * opts.seconds
         y_new = y + v_y * opts.seconds
-        if x_new > 0:
-            x_new = x_new % grid_size[0]
-        if y_new > 0:
-            y_new = y_new % grid_size[1]
-        while x_new < 0:
-            x_new += grid_size[0]
-        while y_new < 0:
-            y_new += grid_size[1]
+
+        # Wrap around the grid's edges:
+        x_new = x_new % grid_size[0]
+        y_new = y_new % grid_size[1]
+
         pos_list.append([ x_new, y_new ])
     if opts.verbose:
         print("")
@@ -145,16 +143,14 @@ def run_part2(opts, grid_size, robots):
             y = robot[1]
             v_x = robot[2]
             v_y = robot[3]
+
+            # Move to the next spot:
             x_new = x + v_x
             y_new = y + v_y
-            if x_new > 0:
-                x_new = x_new % grid_size[0]
-            if y_new > 0:
-                y_new = y_new % grid_size[1]
-            while x_new < 0:
-                x_new += grid_size[0]
-            while y_new < 0:
-                y_new += grid_size[1]
+
+            # Wrap around the grid's edges:
+            x_new = x_new % grid_size[0]
+            y_new = y_new % grid_size[1]
 
             # Update the robot with the new position
             robot[0] = x_new
@@ -216,8 +212,12 @@ def main():
     }
 
     answer = run[opts.part]["call"](opts, run["grid"][opts.filename], robots)
-    if opts.filename in run[opts.part] and answer != run[opts.part][opts.filename]:
-        print(f"Warning: Unexpected value from part {opts.part}, filename '{opts.filename}'")
+    if opts.filename in run[opts.part]:
+        if answer == run[opts.part][opts.filename]:
+            if opts.verbose:
+                print(f"Confirmed expected value from part {opts.part}, filename '{opts.filename}'")
+        else:
+            print(f"Warning: Unexpected value from part {opts.part}, filename '{opts.filename}'")
     print(f"Answer: {answer}")
 
 
