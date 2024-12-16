@@ -45,85 +45,8 @@ DIRS = [
     [  0, -1, 3 ]
 ]
 
-def run_part1(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col):
-    if opts.debug:
-        print(opts)
-        print(lines)
 
-    minimal_cost = 0
-    searching = [ [ start_row, start_col, 0, 1 ] ]
-    best_seen = {}
-    while True:
-        new_searching = []
-        for row, col, cost, face in searching:
-            if minimal_cost > 0 and cost > minimal_cost:
-                # No point in continuing here
-                continue
-
-            for rel_row, rel_col, rel_face in DIRS:
-                new_row = row + rel_row
-                new_col = col + rel_col
-
-                if grid[new_row][new_col] == '#':
-                    # Hitting a wall
-                    continue
-
-                if face == (rel_face + 2) % 4:
-                    # Opposite direction doesn't make sense?
-                    continue
-
-                if grid[new_row][new_col] == 'S':
-                    # Back at the start? That's no good.
-                    continue
-
-                if grid[new_row][new_col] == '.':
-                    new_key = f"{new_row},{new_col},{rel_face}"
-                    if face == rel_face:
-                        new_cost = cost + 1
-                    else:
-                        new_cost = cost + 1001
-
-                    if new_key in best_seen and best_seen[new_key] < new_cost:
-                        # Don't bother searching further if we've
-                        # already visited here (facing the same way)
-                        # with a better cost
-                        continue
-                        
-                    new_searching.append([
-                        new_row, new_col, new_cost, rel_face
-                    ])
-                    best_seen[new_key] = new_cost
-                    continue
-
-                if grid[new_row][new_col] != 'E':
-                    print(f"Found an unexpected item on ({new_row},{new_col}): '{grid[new_row][new_col]}'")
-                    sys.exit(1)
-
-                # Found the end point. How did we do?
-                if face == rel_face:
-                    # Going the same direction still, 1 point
-                    cost += 1
-                else:
-                    # That means we're going to turn
-                    cost += 1001
-                if not minimal_cost or cost < minimal_cost:
-                    if opts.verbose:
-                        print(f"Found a path for {cost} points.")
-                    minimal_cost = cost
-
-        if not len(new_searching):
-            break
-
-        searching = new_searching
-
-    return minimal_cost
-
-
-def run_part2(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col):
-    if opts.debug:
-        print(opts)
-        print(lines)
-
+def searching(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col):
     minimal_cost = 0
     searching = [ [ start_row, start_col, 0, 1, [] ] ]
     best_seen = {}
@@ -201,7 +124,25 @@ def run_part2(opts, grid, max_row, max_col, start_row, start_col, end_row, end_c
         searching = new_searching
 
     # Add 2 for the 'S' and 'E' positions
-    return len(best_positions) + 2
+    return minimal_cost, len(best_positions) + 2
+
+
+def run_part1(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col):
+    if opts.debug:
+        print(opts)
+        print(grid)
+
+    minimal_cost, best_positions = searching(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col)
+    return minimal_cost
+
+
+def run_part2(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col):
+    if opts.debug:
+        print(opts)
+        print(grid)
+
+    minimal_cost, best_positions = searching(opts, grid, max_row, max_col, start_row, start_col, end_row, end_col)
+    return best_positions
 
 
 def main():
