@@ -72,14 +72,14 @@ def on_grid(max_row, max_col, row, col):
 def reachable(opts, grid, max_row, max_col):
     # Find a path to (max_row,max_col)
     checking = [
-        [ 0, 0 ]
+        [ 0, 0, [] ]
     ]
 
     steps = 1
     seen = {f"0,0": True}
     while True:
         new_checking = []
-        for row, col in checking:
+        for row, col, history in checking:
             for rel_row, rel_col in DIRS:
                 new_row = row + rel_row
                 new_col = col + rel_col
@@ -89,7 +89,7 @@ def reachable(opts, grid, max_row, max_col):
 
                 if new_row == max_row - 1 and new_col == max_col - 1:
                     # Arrived
-                    return steps
+                    return steps, history
 
                 if grid[new_row][new_col] == '#':
                     # Can't go there
@@ -100,14 +100,14 @@ def reachable(opts, grid, max_row, max_col):
                     # Already been there
                     continue
                 seen[new_key] = True
-                new_checking.append([ new_row, new_col ])
+                new_checking.append([ new_row, new_col, history + [ f"{new_row},{new_col}" ] ])
         checking = new_checking
         steps += 1
         if not len(checking):
             break
 
     # Return -1 to indicate no path was found
-    return -1
+    return 0, [ ]
 
 
 def initialize_grid(max_row, max_col):
@@ -137,7 +137,8 @@ def run_part1(opts, coordinates, max_row, max_col, initial):
         if ix == initial:
             break
 
-    return reachable(opts, grid, max_row, max_col)
+    result = reachable(opts, grid, max_row, max_col)
+    return result[0]
 
 
 def run_part2(opts, coordinates, max_row, max_col, initial):
@@ -147,6 +148,7 @@ def run_part2(opts, coordinates, max_row, max_col, initial):
 
     grid = initialize_grid(max_row, max_col)
     ix = 0
+    path = {}
     for x, y in coordinates:
         grid[y][x] = '#'
         if opts.verbose:
@@ -158,9 +160,13 @@ def run_part2(opts, coordinates, max_row, max_col, initial):
             # We already know (from part 1) we can get through for those first 1024 bytes
             continue
 
-        if reachable(opts, grid, max_row, max_col) == -1:
-            return f"{x},{y}"
+        if len(path) and f"{y},{x}" not in path:
+            continue
 
+        result = reachable(opts, grid, max_row, max_col)
+        if not result[0]:
+            return f"{x},{y}"
+        path = { x: True for x in result[1] }
     return "?,?"
 
 
