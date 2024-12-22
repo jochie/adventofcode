@@ -51,12 +51,15 @@ def parse_options():
 
     return opts
 
+def next_secret(secret):
+    secret = ((secret *   64) ^ secret) % 16777216
+    secret = ((secret //  32) ^ secret) % 16777216
+    return   ((secret * 2048) ^ secret) % 16777216
+
 
 def iterate_secret_number(opts, secret, iterations):
     for ix in range(iterations):
-        secret = ((secret *   64) ^ secret) % 16777216
-        secret = ((secret //  32) ^ secret) % 16777216
-        secret = ((secret * 2048) ^ secret) % 16777216
+        secret = next_secret(secret)
     return secret
 
 
@@ -72,30 +75,34 @@ def run_part1(opts, lines):
     return total
 
 
-def collect_secret_numbers(opts, secret, iterations):
-    secrets = [ [ secret, secret % 10, 0 ] ]
-    for ix in range(iterations):
-        last_secret = secret % 10
-        secret = ((secret *   64) ^ secret) % 16777216
-        secret = ((secret //  32) ^ secret) % 16777216
-        secret = ((secret * 2048) ^ secret) % 16777216
-        secrets.append([ secret, secret % 10, secret % 10 - last_secret ])
-    return secrets
-
-
-def analyze_secret_sequence(opts, secrets):
+def analyze_secret_numbers(opts, ix, secret, all_bananas, iterations, max_key, max_data):
     sequence = []
     bananas = {}
-    for secret, digit, diff in secrets[1:]:
+    for ix in range(iterations):
+        last_secret = secret % 10
+        secret = next_secret(secret)
+        digit = secret % 10
+        diff = secret % 10 - last_secret
         sequence.append(diff)
         if len(sequence) > 4:
             sequence = sequence[1:]
-        if len(sequence) == 4:
-            sequence_key = ",".join([ str(x) for x in sequence ])
-            if sequence_key in bananas:
-                continue
-            bananas[sequence_key] = digit
-    return bananas
+        if len(sequence) < 4:
+            continue
+        sequence_key = ",".join([ str(x) for x in sequence ])
+        if sequence_key in bananas:
+            continue
+        bananas[sequence_key] = True
+        if sequence_key not in all_bananas:
+            data = all_bananas[sequence_key] = 0
+        else:
+            data = all_bananas[sequence_key]
+        all_bananas[sequence_key] += digit
+        data += digit
+        if not max_key or data > max_data:
+            max_key = sequence_key
+            max_data = data
+    # Return the current best result
+    return max_key, max_data
 
 
 def run_part2(opts, lines):
@@ -103,27 +110,19 @@ def run_part2(opts, lines):
         print(opts)
         print(lines)
 
-    banana_pile = []
+    max_key = None
+    max_data = None
+
     all_bananas = {}
     for ix, secret in enumerate(lines):
         secret = int(secret)
-        secrets = collect_secret_numbers(opts, secret, 2000)
-        bananas = analyze_secret_sequence(opts, secrets)
-        banana_pile.append(bananas)
-        for key, val in bananas.items():
-            if key not in all_bananas:
-                all_bananas[key] = [ [], 0 ]
-            all_bananas[key][0].append(ix)
-            all_bananas[key][1] += val
-    max_key = None
-    max_data = None
-    for key, data in all_bananas.items():
-        if not max_key or data[1] > max_data[1]:
-            max_key = key
-            max_data = data
+        max_key, max_data = analyze_secret_numbers(opts, ix, secret, all_bananas, 2000, max_key, max_data)
+
+#    if opts.verbose:
+#        print(f"With sequence {max_key} you get {max_data[1]} bananas from {len(max_data[0])} buyers")
     if opts.verbose:
-        print(f"With sequence {max_key} you get {max_data[1]} bananas from {len(max_data[0])} buyers")
-    return max_data[1]
+        print(f"With sequence {max_key} you get {max_data} bananas")
+    return max_data
 
 
 def parse_file(opts, filename):
