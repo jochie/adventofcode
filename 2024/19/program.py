@@ -5,6 +5,7 @@ Python code template for AoC programs
 """
 
 import argparse
+from functools import cache
 import re
 import sys
 import time
@@ -81,32 +82,29 @@ def run_part1(opts, patterns, designs):
     return possible
 
 
-def count_patterns_matches(opts, design, patterns, cache):
-    count = 0
-    if design in cache:
-        return cache[design]
-    for pattern in patterns:
-        if len(pattern) > len(design):
-            continue
-        if design[:len(pattern)] == pattern:
-            if len(pattern) == len(design):
-                count += 1
-            else:
-                sub_count = count_patterns_matches(opts, design[len(pattern):], patterns, cache)
-                count += sub_count
-    cache[design] = count
-    return count
-
-
 def run_part2(opts, patterns, designs):
+
+    @cache
+    def count_patterns_matches(design):
+        count = 0
+        for pattern in patterns:
+            if len(pattern) > len(design):
+                continue
+            if design[:len(pattern)] == pattern:
+                if len(pattern) == len(design):
+                    count += 1
+                else:
+                    sub_count = count_patterns_matches(design[len(pattern):])
+                    count += sub_count
+        return count
+
     if opts.debug:
         print(opts)
         print(patterns, designs)
 
-    cache = {}
     total = 0
     for design in designs:
-        count = count_patterns_matches(opts, design, patterns, cache)
+        count = count_patterns_matches(design)
         if count > 0:
             if opts.verbose:
                 print(f"Design '{design}' is possible in {count} ways")
