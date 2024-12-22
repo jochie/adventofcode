@@ -118,8 +118,6 @@ def run_part2(opts, lines):
         secret = int(secret)
         max_key, max_data = analyze_secret_numbers(opts, ix, secret, all_bananas, 2000, max_key, max_data)
 
-#    if opts.verbose:
-#        print(f"With sequence {max_key} you get {max_data[1]} bananas from {len(max_data[0])} buyers")
     if opts.verbose:
         print(f"With sequence {max_key} you get {max_data} bananas")
     return max_data
