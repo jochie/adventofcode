@@ -7,7 +7,9 @@ Python code template for AoC programs
 import argparse
 import re
 import sys
-import time
+
+import PIL
+from PIL import Image, ImageDraw, ImageFont
 
 def parse_options():
     """
@@ -69,6 +71,37 @@ def display_grid(grid_size, pos_list, suppress=False):
         if not suppress:
             print(f"{''.join(line)} - {max_seq}")
     return max_seq
+
+def draw_grid(grid_size, seconds, pos_list):
+    grid = []
+    for row in range(grid_size[1]):
+        line = []
+        for col in range(grid_size[0]):
+            line.append(".")
+        grid.append(line)
+    for pos in pos_list:
+        if grid[pos[1]][pos[0]] == '.':
+            grid[pos[1]][pos[0]] = '1'
+        else:
+            grid[pos[1]][pos[0]] = str(int(grid[pos[1]][pos[0]]) + 1)
+    img = Image.new('RGB', grid_size, "#a0a0a0")
+    for ix, line in enumerate(grid):
+        for iy, entry in enumerate(line):
+            if entry != '.':
+                img.putpixel((iy, ix), (0, 0, 0))
+    drawing = ImageDraw.Draw(img)
+    drawing.text((0, 0), f"Frame: {seconds}")
+    return img
+
+
+def save_frames(grid_size, frames):
+    frame0 = frames[0]
+    frame0.save("tree-frames.gif",
+                save_all=True,
+                append_images=frames[1:])
+    # Optional parameters:
+    # - duration=1 (milliseconds)
+    # - loop=1 (how many additional times to loop through?)
 
 
 def mult_quadrants(grid_size, pos_list):
@@ -135,6 +168,7 @@ def run_part2(opts, grid_size, robots):
     for robot in robots:
         pos_list.append([ robot[0], robot[1] ])
 
+    frames = []
     seconds = 1
     while True:
         pos_list = []
@@ -159,11 +193,14 @@ def run_part2(opts, grid_size, robots):
 
         # Heuristic (realized only in retrospect) to detect the easter
         # egg Christmas tree pattern:
+        frame = draw_grid(grid_size, seconds, pos_list)
+        frames.append(frame)
         if display_grid(grid_size, pos_list, suppress=True) > 10:
             if opts.verbose:
                 print("")
                 print(f"Position after {seconds} second(s)")
                 display_grid(grid_size, pos_list)
+            save_frames(grid_size, frames)
             return seconds
         seconds += 1
     return -2
