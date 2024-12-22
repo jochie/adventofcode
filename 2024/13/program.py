@@ -43,7 +43,6 @@ def parse_options():
 # leaving it here as an example of a grid search, just the same.
 
 def run_part1(opts, machines):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(machines)
@@ -97,7 +96,6 @@ def run_part1(opts, machines):
 # without mixing up some of the constants somewhere along the way.
 
 def run_part2(opts, machines):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(machines)

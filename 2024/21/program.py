@@ -202,7 +202,6 @@ def find_sequence(opts, code, botlevel):
 
 
 def run_part1(opts, lines):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(lines)
@@ -220,7 +219,6 @@ def run_part1(opts, lines):
 
 
 def run_part2(opts, lines):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(lines)

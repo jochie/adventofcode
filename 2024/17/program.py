@@ -219,7 +219,6 @@ def run_part1(opts, registers, program):
 
 
 def run_part2(opts, registers, program):
-    # Placeholder return value
     if opts.debug:
         print(opts)
         print(registers, program)
