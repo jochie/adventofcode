@@ -8,6 +8,11 @@ import argparse
 import re
 import sys
 
+# For reusable AoC modules
+sys.path.append("../../modules")
+
+from vector import Vector
+
 def parse_options():
     """
     Parser command line options
@@ -35,25 +40,6 @@ def parse_options():
                         help="The filename to read (sample, input)",
                         required=True)
     return parser.parse_args()
-
-
-# Basic vector/position class
-class Vector:
-    def __init__(self, r, c):
-        self.row = r
-        self.col = c
-
-    def __add__(self, o):
-        return Vector(self.row + o.row, self.col + o.col)
-
-    def __sub__(self, o):
-        return Vector(self.row - o.row, self.col - o.col)
-
-    def __repr__(self):
-        return f"({self.row},{self.col})"
-
-    def __eq__(self, o):
-        return self.row == o.row and self.col == o.col
 
 
 DIRS = [
