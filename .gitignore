@@ -7,3 +7,4 @@ program2.dSYM
 input*
 sample*
 .DS_Store
+__pycache__/
