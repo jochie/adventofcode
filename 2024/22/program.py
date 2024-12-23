@@ -76,19 +76,16 @@ def run_part1(opts, lines):
 
 
 def analyze_secret_numbers(opts, ix, secret, all_bananas, iterations, max_key, max_data):
-    sequence = []
+    sequence_key = 0
     bananas = {}
     for ix in range(iterations):
         last_secret = secret % 10
         secret = next_secret(secret)
         digit = secret % 10
-        diff = secret % 10 - last_secret
-        sequence.append(diff)
-        if len(sequence) > 4:
-            sequence = sequence[1:]
-        if len(sequence) < 4:
+        diff = secret % 10 - last_secret + 10
+        sequence_key = (sequence_key % 8000) * 20 + diff
+        if ix < 3:
             continue
-        sequence_key = ",".join([ str(x) for x in sequence ])
         if sequence_key in bananas:
             continue
         bananas[sequence_key] = True
