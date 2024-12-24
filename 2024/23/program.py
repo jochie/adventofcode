@@ -10,6 +10,7 @@ import re
 import sys
 import time
 
+import networkx as nx
 
 def parse_options():
     """
@@ -53,85 +54,41 @@ def parse_options():
     return opts
 
 
-def run_part1(opts, nodes):
+def run_part1(opts, G):
     if opts.debug:
         print(opts)
-        print(nodes)
+        print(G)
 
-    trios = {}
-    for node_a in nodes.keys():
-        for node_b in nodes[node_a].keys():
-            for node_c in nodes.keys():
-                if node_a == node_c or node_b == node_c:
-                    continue
-                c_map = nodes[node_c]
-                if node_a in c_map and node_b in c_map:
-                    node_list = [node_a, node_b, node_c]
-                    node_list.sort()
-                    node_list_key = ",".join(node_list)
-                    if node_a[0] != 't' and node_b[0] != 't' and node_c[0] != 't':
-                        continue
-                    if node_list_key not in trios:
-                        trios[node_list_key] = True
+    matches = 0
+    for clique in nx.enumerate_all_cliques(G):
+        if len(clique) != 3:
+            continue
+        for node in clique:
+            if node[0] == 't':
+                matches += 1
+                break
 
-    return len(trios.keys())
+    return matches
 
 
-def find_clusters(opts, ix, node_a, nodes):
-    in_cluster = True
-
-    biggest = []
-
-    checking = [ [ node_a, { node_a: True } ] ]
-    while True:
-        new_checking = []
-        for cur_node, cluster in checking:
-            for next_node in nodes[cur_node].keys():
-                if next_node in cluster:
-                    # Don't loop back
-                    continue
-
-                # This is a node that's new to the current cluster
-
-                # Does it connect to all the ones already seen before?
-                in_cluster = True
-                for node in cluster.keys():
-                    if node not in nodes[next_node].keys():
-                        # Nope
-                        in_cluster = False
-                        break
-                if not in_cluster:
-                    # Move along
-                    continue
-                new_cluster = copy.deepcopy(cluster)
-                new_cluster[next_node] = True
-                new_checking.append([ next_node, new_cluster ])
-                if len(new_cluster.keys()) > len(biggest):
-                    biggest = new_cluster.keys()
-                    break
-        if not len(new_checking):
-            break
-        checking = new_checking
-    return list(biggest)
-
-
-def run_part2(opts, nodes):
+def run_part2(opts, G):
     # Placeholder return value
     if opts.debug:
         print(opts)
-        print(nodes)
+        print(G)
 
-    biggest_cluster = []
-    for ix, node_a in enumerate(nodes.keys()):
-        node_list = find_clusters(opts, ix, node_a, nodes)
-        if not len(biggest_cluster) or len(node_list) > len(biggest_cluster):
-            biggest_cluster = node_list
-    biggest_cluster.sort()
-    return ",".join(biggest_cluster)
+    max_group = []
+    for group in nx.find_cliques(G):
+        if len(group) <= len(max_group):
+            continue
+        max_group = group
+
+    max_group.sort()
+    return ",".join(max_group)
 
 
 def parse_file(opts, filename):
-    nodes = {}
+    G = nx.Graph()
     try:
         with open(filename, "r", encoding="utf-8") as input_fd:
             for line in input_fd:
@@ -139,16 +96,11 @@ def parse_file(opts, filename):
                 if opts.debug:
                     print(f"DEBUG: Line received: '{line}'")
                 conn_a, conn_b = line.split("-")
-                if conn_a not in nodes:
-                    nodes[conn_a] = {}
-                if conn_b not in nodes:
-                    nodes[conn_b] = {}
-                nodes[conn_a][conn_b] = True
-                nodes[conn_b][conn_a] = True
+                G.add_edge(conn_a, conn_b)
     except FileNotFoundError:
         print(f"ERROR: File not found {filename}")
         sys.exit(1)
-    return nodes,
+    return G,
 
 
 def run_part(opts, run, part, filename, params):
