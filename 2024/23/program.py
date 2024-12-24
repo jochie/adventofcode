@@ -61,8 +61,14 @@ def run_part1(opts, G):
 
     matches = 0
     for clique in nx.enumerate_all_cliques(G):
-        if len(clique) != 3:
+        if len(clique) < 3:
+            # Waiting for the cliques of size 3
             continue
+
+        if len(clique) > 3:
+            # Not interested in larger cliques
+            break
+
         for node in clique:
             if node[0] == 't':
                 matches += 1
