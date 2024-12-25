@@ -1,36 +1,42 @@
 use std::fs;  // fs::read_to_string()
 use std::env; // env::args()
 
-fn parse_input(filename: &String) -> String {
+// Read the given file and return a list of integers
+fn parse_input(filename: &String) -> Vec<i32> {
+    let mut lines: Vec<i32> = Vec::new();
     let contents = fs::read_to_string(&filename)
 	.expect("Missing file");
-    return contents;
-}
-
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let len = args.len();
-    if len == 1 {
-	let args0 = &args[0];
-	println!("Usage: {args0} <filename>");
-	return;
-    }
-
-    let data = parse_input(&args[1]);
-
-    let mut part1_sum: i32 = 0;
-    let mut part2_sum: i64 = 0;
-
-    for line in data.lines() {
+    for line in contents.lines() {
 	let num: i32 = match line.trim().parse() {
-	    Ok(num) => num,
+	    Ok(num) => {
+		println!("LINE: {num}>");
+		num
+	    },
 	    Err(_) => {
 		println!("LINE MALFORMED <{line}>");
 		continue;
 	    }
 	};
+	lines.push(num);
+    }
+    return lines;
+}
+
+// Main program, takes the list of integers parsed from the file and
+// does the necessary math calculations on them
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let len = args.len();
+    if len == 1 {
+	println!("Usage: {} <filename>", &args[0]);
+	return;
+    }
+
+    let mut part1_sum: i32 = 0;
+    let mut part2_sum: i64 = 0;
+
+    for num in parse_input(&args[1]) {
 	let mut fuel: i32 = num / 3 - 2;
 
 	part1_sum += fuel;
