@@ -1,16 +1,24 @@
-use std::fs; // fs::read_to_string()
-
+use std::fs;  // fs::read_to_string()
+use std::env; // env::args()
 
 fn parse_input(filename: &String) -> String {
     let contents = fs::read_to_string(&filename)
-	.expect("File missing?");
+	.expect("Missing file");
     return contents;
 }
 
 
 fn main() {
-    let filename = String::from("input");
-    let data = parse_input(&filename);
+    let args: Vec<String> = env::args().collect();
+
+    let len = args.len();
+    if len == 1 {
+	let args0 = &args[0];
+	println!("Usage: {args0} <filename>");
+	return;
+    }
+
+    let data = parse_input(&args[1]);
 
     let mut part1_sum: i32 = 0;
     let mut part2_sum: i64 = 0;
