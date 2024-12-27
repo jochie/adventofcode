@@ -81,36 +81,40 @@ fn run_part1(matches: &Matches, intcode: &mut Vec<u32>) -> u32 {
     }
     let mut pc = 0;
     loop {
-        if intcode[pc] == 99 {
-            if matches.opt_present("d") {
-                println!("[{pc:03}] 99");
-                println!("    Return {}", intcode[0]);
+        match intcode[pc] {
+            99 => {
+                if matches.opt_present("d") {
+                    println!("[{pc:03}] 99");
+                    println!("    Return {}", intcode[0]);
+                }
+                return intcode[0];
+            },
+            1 => {
+                if matches.opt_present("d") {
+                    println!("[{pc:03} 1 {} + {} -> {} at {}",
+                             intcode[intcode[pc + 1] as usize], intcode[intcode[pc + 2] as usize],
+                             intcode[intcode[pc + 1] as usize] + intcode[intcode[pc + 2] as usize],
+                             intcode[pc + 3]);
+                }
+                let target = intcode[pc + 3];
+                intcode[target as usize] = intcode[intcode[pc + 1] as usize] + intcode[intcode[pc + 2] as usize];
+                pc += 4;
+            },
+            2 => {
+                if matches.opt_present("d") {
+                    println!("[{pc:03} 1 {} * {} -> {} at {}",
+                             intcode[intcode[pc + 1] as usize], intcode[intcode[pc + 2] as usize],
+                             intcode[intcode[pc + 1] as usize] * intcode[intcode[pc + 2] as usize],
+                             intcode[pc + 3]);
+                }
+                let target = intcode[pc + 3];
+                intcode[target as usize] = intcode[intcode[pc + 1] as usize] * intcode[intcode[pc + 2] as usize];
+                pc += 4;
+            },
+            _ => {
+                println!("[{pc:03} {} ... Unexpected instruction!", intcode[pc]);
+                process::exit(1);
             }
-            return intcode[0];
-        }
-        if intcode[pc] == 1 {
-            if matches.opt_present("d") {
-                println!("[{pc:03} 1 {} + {} -> {} at {}",
-                         intcode[intcode[pc + 1] as usize], intcode[intcode[pc + 2] as usize],
-                         intcode[intcode[pc + 1] as usize] + intcode[intcode[pc + 2] as usize],
-                         intcode[pc + 3]);
-            }
-            let target = intcode[pc + 3];
-            intcode[target as usize] = intcode[intcode[pc + 1] as usize] + intcode[intcode[pc + 2] as usize];
-            pc += 4;
-            continue;
-        }
-        if intcode[pc] == 2 {
-            if matches.opt_present("d") {
-                println!("[{pc:03} 1 {} * {} -> {} at {}",
-                         intcode[intcode[pc + 1] as usize], intcode[intcode[pc + 2] as usize],
-                         intcode[intcode[pc + 1] as usize] * intcode[intcode[pc + 2] as usize],
-                         intcode[pc + 3]);
-            }
-            let target = intcode[pc + 3];
-            intcode[target as usize] = intcode[intcode[pc + 1] as usize] * intcode[intcode[pc + 2] as usize];
-            pc += 4;
-            continue;
         }
     }
 }
@@ -177,7 +181,7 @@ fn main() {
         process::exit(1);
     }
 
-    let answers: Vec<u32> = vec![  29891, 6429 ];
+    let answers: Vec<u32> = vec![ 3716293, 6429 ];
 
     let filename = matches.opt_str("f").unwrap();
     let mut numbers: Vec<u32> = parse_input(&matches, &filename);
