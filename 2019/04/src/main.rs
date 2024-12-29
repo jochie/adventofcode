@@ -61,8 +61,17 @@ fn parse_options(args: &Vec<String>) -> Matches {
 }
 
 
+// Putting the specifics of the different puzzle inputs in this
+// struct, to make the various function signatures more generic.
+
+#[derive(Debug)]
+struct Input {
+    n: Vec<i32>,
+}
+
+
 // Read the given file and return a list of integers
-fn parse_input(_matches: &Matches, filename: &String) -> Vec<i32> {
+fn parse_input(_matches: &Matches, filename: &String) -> Input {
     let content = match fs::read_to_string(&filename) {
         Ok(data) => data,
         Err(_) => {
@@ -75,7 +84,7 @@ fn parse_input(_matches: &Matches, filename: &String) -> Vec<i32> {
     for segment in line.trim().split("-") {
         numbers.push(segment.parse::<i32>().unwrap());
     }
-    numbers
+    Input { n: numbers }
 }
 
 
@@ -106,12 +115,12 @@ fn validate_number(matches: &Matches, number: i32) -> bool {
 
 
 // The main code for part 1
-fn run_part1(matches: &Matches, numbers: &Vec<i32>) -> i64 {
+fn run_part1(matches: &Matches, data: &Input) -> i64 {
     if matches.opt_present("d") {
-        dbg!(&numbers);
+        dbg!(&data);
     }
     let mut valid = 0;
-    for ix in numbers[0]..=numbers[1] {
+    for ix in data.n[0]..=data.n[1] {
         if validate_number(&matches, ix) {
             valid += 1;
         }
@@ -157,12 +166,12 @@ fn validate_number2(matches: &Matches, number: i32) -> bool {
 
 
 // The main code for part 2
-fn run_part2(matches: &Matches, numbers: &Vec<i32>) -> i64 {
+fn run_part2(matches: &Matches, data: &Input) -> i64 {
     if matches.opt_present("d") {
-        dbg!(&numbers);
+        dbg!(&data);
     }
     let mut valid = 0;
-    for ix in numbers[0]..=numbers[1] {
+    for ix in data.n[0]..=data.n[1] {
         if validate_number2(&matches, ix) {
             valid += 1;
         }
@@ -172,14 +181,14 @@ fn run_part2(matches: &Matches, numbers: &Vec<i32>) -> i64 {
 
 
 fn run_part(matches: &Matches, part: u8, filename: String, expected: i64) -> bool {
-    let numbers = parse_input(&matches, &filename);
+    let data = parse_input(&matches, &filename);
     let answer: i64;
     let passed: bool;
 
     let now = Instant::now();
     match part {
-        1 => answer = run_part1(&matches, &numbers),
-        2 => answer = run_part2(&matches, &numbers),
+        1 => answer = run_part1(&matches, &data),
+        2 => answer = run_part2(&matches, &data),
         _ => answer = -1,
     }
     if answer == expected {
