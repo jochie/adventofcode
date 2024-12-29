@@ -2,6 +2,9 @@
 //
 // Rust code for AoC program
 
+// Useful while developing, allows focus on the bigger picture
+#![allow(dead_code, unused_variables)]
+
 extern crate getopts;
 
 use getopts::Options;
@@ -61,9 +64,17 @@ fn parse_options(args: &Vec<String>) -> Matches {
 }
 
 
+// Putting the specifics of the different puzzle inputs in this
+// struct, to make the various function signatures more generic.
+
+#[derive(Debug)]
+struct Input {
+    n: Vec<i32>,
+}
+
+
 // Read the given file and return a list of integers
-fn parse_input(matches: &Matches, filename: &String) -> Vec<i32> {
-    let mut lines: Vec<i32> = Vec::new();
+fn parse_input(matches: &Matches, filename: &String) -> Input {
     let content = match fs::read_to_string(&filename) {
         Ok(data) => data,
         Err(_) => {
@@ -71,11 +82,12 @@ fn parse_input(matches: &Matches, filename: &String) -> Vec<i32> {
             process::exit(1);
         }
     };
+    let mut lines: Vec<i32> = Vec::new();
     for line in content.lines() {
         let num: i32 = match line.trim().parse() {
             Ok(num) => {
                 if matches.opt_present("d") {
-                    println!("LINE: {num}>");
+                    println!("LINE: <{num}>");
                 }
                 num
             },
@@ -86,15 +98,14 @@ fn parse_input(matches: &Matches, filename: &String) -> Vec<i32> {
         };
         lines.push(num);
     }
-
-    lines
+    Input { n: lines }
 }
 
 
 // The main code for part 1
-fn run_part1(matches: &Matches, numbers: &Vec<i32>) -> i64 {
+fn run_part1(matches: &Matches, data: &Input) -> i64 {
     if matches.opt_present("d") {
-        dbg!(&numbers);
+        dbg!(&data);
     }
 
     -1
@@ -102,14 +113,41 @@ fn run_part1(matches: &Matches, numbers: &Vec<i32>) -> i64 {
 
 
 // The main code for part 2
-fn run_part2(matches: &Matches, numbers: &Vec<i32>) -> i64 {
+fn run_part2(matches: &Matches, data: &Input) -> i64 {
     if matches.opt_present("d") {
-        dbg!(&numbers);
+        dbg!(&data);
     }
 
     -2
 }
 
+
+fn run_part(matches: &Matches, part: u8, filename: String, expected: i64) -> bool {
+    let data = parse_input(&matches, &filename);
+    let answer: i64;
+    let passed: bool;
+
+    let now = Instant::now();
+    match part {
+        1 => answer = run_part1(&matches, &data),
+        2 => answer = run_part2(&matches, &data),
+        _ => answer = -1,
+    }
+    if answer == expected {
+        passed = true;
+        if matches.opt_present("v") {
+            println!("Confirmed expected value from part {part}, filename '{filename}'");
+        }
+    } else {
+        println!("Warning: Unexpected value from part {part}, filename '{filename}'");
+        passed = false;
+    }
+    let duration = now.elapsed();
+    println!("[Duration {:7.1?}] Part {part}, filename '{filename}', answer: {answer}",
+             duration);
+
+    passed
+}
 
 // Main program, which parses the command line options, parses the
 // file, and call the appropriate run_* functions with the parsed data
@@ -120,8 +158,8 @@ fn main() {
 
     let mut answers: HashMap<&u8, HashMap<&str, i64>> = HashMap::new();
     answers.insert(&1, HashMap::from([
-        ("sample",  0),
-        ("input",   0),
+        ("sample", 0),
+        ("input",  0),
     ]));
     answers.insert(&2, HashMap::from([
         ("sample", 0),
@@ -153,60 +191,27 @@ fn main() {
             t_filenames.sort();
 
             for t_filename in t_filenames {
-                let numbers = parse_input(&matches, &String::from(t_filename));
-
-                let answer: i64;
-                let now = Instant::now();
-
-                // Still hardcoding which function to call
-                match t_part {
-                    1 => answer = run_part1(&matches, &numbers),
-                    2 => answer = run_part2(&matches, &numbers),
-                    _ => answer = -1,
-                }
-                if answer == answers[&t_part][t_filename] {
-                    if matches.opt_present("v") {
-                        println!("Confirmed expected value from part {t_part}, filename '{t_filename}'");
-                    }
+                let expected = answers[&t_part][t_filename];
+                if run_part(&matches, *t_part, String::from(t_filename), expected) {
                     passed += 1;
                 } else {
-                    println!("Warning: Unexpected value from part {t_part}, filename '{t_filename}'");
                     failed += 1;
                 }
-                let duration = now.elapsed();
-                println!("[Duration {:7.1?}] Part {t_part}, filename '{t_filename}', answer: {answer}",
-                         duration);
             }
         }
         println!("Test results: {passed} passed, {failed} failed.");
         return;
     }
-    let filename = matches.opt_str("f").unwrap();
-    let numbers = parse_input(&matches, &filename);
 
+    let filename = matches.opt_str("f").unwrap();
     let part_str = matches.opt_str("p").unwrap();
     let part = part_str.parse::<u8>().unwrap();
-    let answer: i64;
-    let now = Instant::now();
 
-    match part {
-        1 => answer = run_part1(&matches, &numbers),
-        2 => answer = run_part2(&matches, &numbers),
-        _ => {
-            println!("Error: Unexpected part: {part}.");
-            return;
-        }
-    }
+    let expected: i64;
     if answers.contains_key(&part) && answers[&part].contains_key(&filename.as_str()) {
-        if answer == answers[&part][&filename.as_str()] {
-            if matches.opt_present("v") {
-                println!("Confirmed expected value from part {part}, filename '{filename}'");
-            }
-        } else {
-            println!("Warning: Unexpected value from part {part}, filename '{filename}'");
-        }
+        expected = answers[&part][&filename.as_str()];
+    } else {
+        expected = 0;
     }
-    let duration = now.elapsed();
-    println!("[Duration {:.1?}] Part {part}, filename '{filename}', answer: {answer}",
-             duration);
+    run_part(&matches, part, filename, expected);
 }
