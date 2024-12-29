@@ -143,7 +143,7 @@ fn run_part(matches: &Matches, part: u8, filename: String, expected: i64) -> boo
         passed = false;
     }
     let duration = now.elapsed();
-    println!("[Duration {:7.1?}] Part {part}, filename '{filename}', answer: {answer}",
+    println!("[Duration {:>7.1?}] Part {part}, filename '{filename}', answer: {answer}",
              duration);
 
     passed
