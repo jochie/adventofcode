@@ -13,4 +13,4 @@ page](https://adventofcode.com/about), which is why a **lot** of the commits are
 # Some sideshows
 
 - A little bit of [Docker](docker/) help to run Linux tools in a macOS environment.
-- Some [templates](templates/) (C, Perl, Python) that provide a framework for getting started on the next challenge.
+- Some [templates](templates/) (C, Perl, Python, Rust) that provide a framework for getting started on the next challenge.
