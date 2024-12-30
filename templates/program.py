@@ -106,7 +106,7 @@ def run_part(opts, run, part, filename, params):
 def main():
     """
     Main section, where we parse the command line options, read the
-    stdin content, and act on it
+    content, and act on it
     """
     opts = parse_options()
 
