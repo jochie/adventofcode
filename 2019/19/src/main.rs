@@ -377,18 +377,21 @@ fn run_part2(matches: &Matches, data: &Input) -> i64 {
     let grid_scan = 1500;
     let desired_size = 99;
 
-    // There is a gap between 0,0 and the actual start, so let's jump there
-    for y in 0..grid_scan {
-        let mut in_beam = false;
-
-        let mut x: usize = 0;
-        if y > 0 && left_edge.contains_key(&(y - 1)) {
-            x = left_edge[&(y - 1)];
-        }
+    let mut offset: usize = 0;
+    loop {
         if matches.opt_present("v") {
-            print!("{y:3}:");
+            print!("{offset:3}:");
         }
-        loop {
+
+        // Scan for the left edge
+        let mut x_start: usize = 0;
+        let y: usize = offset;
+
+        if y > 0 && left_edge.contains_key(&(y - 1)) {
+            x_start = left_edge[&(y - 1)];
+        }
+
+        for x in x_start..x_start+10 {
             let mut ram = data.clone();
 
             // Extend the memory slots a bit
@@ -408,56 +411,73 @@ fn run_part2(matches: &Matches, data: &Input) -> i64 {
                     break;
                 }
             }
-            if output[0] == 1 {
-                if matches.opt_present("v") {
-                    print!("#");
+            if output[0] == 0 {
+                continue;
+            }
+            left_edge.insert(y as usize, x as usize);
+
+            if left_edge.contains_key(&y) {
+                let edge_x = left_edge[&y];
+                if top_edge.contains_key(&(edge_x + desired_size)) {
+                    let edge_y = top_edge[&(edge_x + desired_size)];
+                    if y >= edge_y {
+                        if y - edge_y >= desired_size {
+                            if matches.opt_present("v") {
+                                println!("Left edge: ({},{y}) - top edge at {}: {}; Size: 10 x {}", edge_x, edge_x + 100, edge_y, y - edge_y);
+                                println!("Top left corner: ({edge_x},{edge_y})");
+                            }
+                            return (edge_x * 10_000 + edge_y) as i64
+                        } else {
+                            if matches.opt_present("v") {
+                                println!("  --  Size is {} x {}", desired_size + 1, y - edge_y + 1);
+                            }
+                        }
+                    }
+                } else {
+                    // println!("Left edge: ({y},{}) - top edge unknown?", edge_x);
+                    if matches.opt_present("v") {
+                        println!();
+                    }
                 }
-                if !in_beam {
-                    left_edge.insert(y as usize, x as usize);
-                }
-                in_beam = true;
-                if !top_edge.contains_key(&(x as usize)) {
-                    top_edge.insert(x as usize, y as usize);
-                }
-            } else {
-                if matches.opt_present("v") {
-                    print!(".");
-                }
-                if in_beam {
+            }
+
+            break;
+        }
+        let mut y_start: usize = 0;
+        let x: usize = offset;
+
+        if x > 0 && top_edge.contains_key(&(x - 1)) {
+            y_start = top_edge[&(x - 1)];
+        }
+
+        for y in y_start..y_start+10 {
+            let mut ram = data.clone();
+
+            // Extend the memory slots a bit
+            for _ in 0..3000 {
+                ram.n.push(0);
+            }
+            let mut pc:      usize = 0;
+            let mut output:  Vec<i64> = Vec::new();
+            let mut input:   Vec<i64> = Vec::new();
+            let mut relbase: usize = 0;
+
+            input.push(x as i64);
+            input.push(y as i64);
+            loop {
+                let exec_cont = execute_intcode(&matches, &mut pc, &mut ram, &mut input, &mut output, &mut relbase);
+                if !exec_cont {
                     break;
                 }
             }
-            x += 1;
-            if x > grid_scan {
-                break;
+            if output[0] == 0 {
+                continue;
             }
+            top_edge.insert(x as usize, y as usize);
+            break;
         }
-        if left_edge.contains_key(&y) {
-            let edge_x = left_edge[&y];
-            if top_edge.contains_key(&(edge_x + desired_size)) {
-                let edge_y = top_edge[&(edge_x + desired_size)];
-                if y - edge_y >= desired_size {
-                    if matches.opt_present("v") {
-                        println!("Left edge: ({},{y}) - top edge at {}: {}; Size: 10 x {}", edge_x, edge_x + 100, edge_y, y - edge_y);
-                        println!("Top left corner: ({edge_x},{edge_y})");
-                    }
-                    return (edge_x * 10_000 + edge_y) as i64
-                } else {
-                    if matches.opt_present("v") {
-                        println!("  --  Size is {} x {}", desired_size + 1, y - edge_y + 1);
-                    }
-                }
-            } else {
-                // println!("Left edge: ({y},{}) - top edge unknown?", edge_x);
-                if matches.opt_present("v") {
-                    println!();
-                }
-            }
-        }
+        offset += 1;
     }
-
-    dbg!(&left_edge, &top_edge);
-    -2
 }
 
 
